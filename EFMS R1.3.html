@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaFuel - Maritime Fuel Monitoring</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js & date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.2.5/dist/chartjs-plugin-dragdata.min.js"></script>
+    
+    <style>
+        /* CSS Variables for Theming */
+        :root {
+            --bg-primary: #111827;
+            --bg-widget: #1f2937;
+            --bg-header-btn-container: #1f2937;
+            --bg-header-btn: #111827;
+            --bg-info-box: #111827;
+            --text-primary: #d1d5db;
+            --text-secondary: #9ca3af;
+            --text-headings: #ffffff;
+            --border-primary: #374151;
+            --border-secondary: #4b5563;
+            --chart-grid: rgba(255, 255, 255, 0.1);
+            --cyan-glow-color: rgba(56, 189, 248, 0.6);
+        }
+
+        body.light-theme {
+            --bg-primary: #f9fafb;
+            --bg-widget: #ffffff;
+            --bg-header-btn-container: #e5e7eb;
+            --bg-header-btn: #ffffff;
+            --bg-info-box: #f3f4f6; /* gray-100 */
+            --text-primary: #1f2937;     /* Dark Gray (slate-800) */
+            --text-secondary: #374151;     /* Darker Gray (slate-700) for better contrast */
+            --text-headings: #111827;     /* Near Black (slate-900) */
+            --border-primary: #e5e7eb;
+            --border-secondary: #d1d5db;
+            --chart-grid: rgba(0, 0, 0, 0.1);
+            --cyan-glow-color: rgba(14, 165, 233, 0.4);
+        }
+
+        /* Custom styles for the futuristic theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary); /* Default text color is now controlled by CSS variables */
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .text-glow {
+            text-shadow: 0 0 8px var(--cyan-glow-color);
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-widget); }
+        ::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-secondary); }
+
+        .widget {
+            background-color: var(--bg-widget);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-primary);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* Pipe flow animation */
+        @keyframes flow-animation {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 50px; }
+        }
+        .pipe {
+            width: 8px;
+            height: 50px;
+            background-size: 100% 50px;
+            border-radius: 4px;
+        }
+        .pipe.active {
+            background-image: linear-gradient(to bottom, #0891b2 25%, #67e8f9 50%, #0891b2 75%);
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+            animation: flow-animation 2s linear infinite;
+        }
+        .pipe.offline {
+            background-color: var(--border-secondary);
+        }
+
+        .engine-symbol-bg { fill: var(--border-primary); }
+        .engine-symbol-fill { fill: #0891b2; transition: width 0.5s ease-in-out; }
+        .engine-block.offline .engine-symbol-fill, .engine-block.offline .pipe { background: var(--border-secondary); animation: none; }
+        .engine-block.offline { opacity: 0.6; }
+        .engine-block.online { cursor: pointer; }
+
+        @keyframes flow-animation-horizontal {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 0; }
+        }
+        .pipe-horizontal {
+            width: 100%;
+            height: 8px;
+            background-size: 50px 100%;
+            border-radius: 4px;
+        }
+        .pipe-horizontal.active {
+            background-image: linear-gradient(to right, #0891b2 25%, #67e8f9 50%, #0891b2 75%);
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+            animation: flow-animation-horizontal 2s linear infinite;
+        }
+        .pipe-horizontal.offline {
+            background-color: var(--border-secondary);
+        }
+        
+        /* Modals */
+        .modal-backdrop { transition: opacity 0.3s ease-in-out; }
+        .modal-content {
+            background-color: var(--bg-widget);
+            border: 1px solid var(--border-primary);
+        }
+        .form-input, .form-select, .form-radio {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+        }
+        .form-radio {
+            color: #0891b2;
+        }
+        .form-radio:focus {
+            ring-color: #0ea5e9;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.5);
+        }
+        .form-input:disabled {
+            background-color: var(--border-primary);
+            cursor: not-allowed;
+        }
+        /* Toggle Switch */
+        .toggle-bg:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            background-color: white;
+            border-radius: 9999px;
+            height: 1.25rem;
+            width: 1.25rem;
+            transition: transform 0.2s ease-in-out;
+        }
+        input:checked + .toggle-bg {
+            background-color: #0891b2; /* Active color */
+        }
+        input:checked + .toggle-bg:after {
+            transform: translateX(100%);
+        }
+
+        /* Tier Selector, Log Tabs, Presets, Trend Toggles */
+        .tier-selector, .log-tabs {
+            background-color: var(--bg-header-btn-container);
+        }
+        .tier-selector button, .log-tabs button {
+            color: var(--text-secondary);
+        }
+        .trend-toggle, .preset-btn {
+            background-color: var(--bg-header-btn);
+            color: var(--text-secondary);
+        }
+        .trend-toggle:hover, .preset-btn:hover {
+            background-color: var(--border-secondary);
+            color: var(--text-headings);
+        }
+        .tier-selector button.active, .log-tabs button.active, .preset-btn.active, .trend-toggle.active {
+            background-color: #0891b2;
+            color: white;
+            font-weight: 600;
+        }
+        .preset-btn.active .preset-wrench {
+            color: #67e8f9; /* cyan-300 */
+        }
+        
+        /* Simulation Knobs */
+        .sim-knob {
+            background-color: var(--border-primary);
+            color: var(--text-primary);
+            border-radius: 9999px;
+            width: 2rem;
+            height: 2rem;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .sim-knob:hover {
+            background-color: var(--border-secondary);
+        }
+         .sim-knob.reset {
+            background-color: #be123c;
+        }
+        .sim-knob.reset:hover {
+            background-color: #e11d48;
+        }
+
+        /* Info Icon */
+        .info-icon {
+            cursor: pointer;
+            display: inline-block;
+            margin-left: 0.5rem;
+            color: #6b7280;
+            transition: color 0.2s;
+        }
+        .info-icon:hover {
+            color: #0ea5e9;
+        }
+        
+        /* Flashing animation for ROB deviation */
+        @keyframes flash-red { 50% { background-color: rgba(239, 68, 68, 0.3); } }
+        @keyframes flash-green { 50% { background-color: rgba(16, 185, 129, 0.3); } }
+        .flash-red { animation: flash-red 1s ease-in-out 2; }
+        .flash-green { animation: flash-green 1s ease-in-out 2; }
+
+        /* Performance KPI Arrows */
+        .perf-kpi-arrow {
+            cursor: pointer;
+            user-select: none;
+        }
+        .perf-kpi-arrow:disabled {
+            color: var(--border-primary);
+            cursor: not-allowed;
+        }
+
+        /* Themed box for info modals */
+        .info-box {
+            background-color: var(--bg-info-box);
+            color: var(--text-primary);
+            border: 1px solid var(--border-secondary);
+        }
+        .warning-box {
+            background-color: rgba(252, 211, 77, 0.1); /* yellow-300 with opacity */
+            border: 1px solid rgba(252, 211, 77, 0.4);
+            color: #fef08a; /* yellow-200 */
+        }
+        body.light-theme .warning-box {
+            background-color: #fefce8; /* yellow-50 */
+            border-color: #fde047; /* yellow-400 */
+            color: #713f12; /* yellow-900 */
+        }
+    </style>
+</head>
+<body> <!-- Removed text-gray-200 class -->
+
+    <div class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-headings">MetaFuel <span id="tier-name" class="text-cyan-400">Core</span></h1>
+            <div class="flex items-center gap-4 p-1 rounded-lg tier-selector">
+                <button data-tier="Core" class="px-3 py-1 text-sm rounded-md transition-colors">Core</button>
+                <button data-tier="Accountability" class="px-3 py-1 text-sm rounded-md transition-colors">Accountability</button>
+                <button data-tier="Compliance" class="px-3 py-1 text-sm rounded-md transition-colors">Compliance</button>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm text-secondary hidden sm:block" id="current-time"></span>
+                 <button id="theme-toggle-button" title="Toggle Theme" class="text-secondary hover:text-cyan-400 transition-colors">
+                     <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                     <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                 </button>
+                 <svg id="settings-button" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-secondary hover:text-cyan-400 transition-colors cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Settings">
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                 </svg>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main id="dashboard-grid" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- KPI: Fuel -->
+            <div id="fuel-kpi-widget" class="widget lg:col-span-2 grid grid-cols-1 text-center">
+                <div id="fuel-rate-kpi-container" class="flex flex-col justify-start px-4">
+                    <h2 id="fuel-rate-label" class="text-sm font-semibold text-secondary uppercase tracking-wider h-12 flex items-center justify-center">
+                        Live Fuel Rate (Estimated)
+                        <svg class="info-icon" data-info-id="live-fuel" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                    <div class="flex items-center justify-center gap-2 my-2">
+                        <p id="kpi-fuel-rate" class="text-5xl font-black text-cyan-400 text-glow">0</p>
+                    </div>
+                    <p class="text-lg font-medium text-secondary">kg/h</p>
+                    <div class="text-xs text-secondary h-8 mt-1 space-y-1">
+                        <p id="fuel-breakdown-engines"></p>
+                        <p id="fuel-breakdown-other"></p>
+                    </div>
+                </div>
+                <div id="fuel-level-kpi-container" class="flex flex-col justify-start px-4 hidden">
+                    <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider h-12 flex items-center justify-center">Total Fuel on Board</h2>
+                    <p id="fuel-level-pct" class="text-5xl font-black text-cyan-400 my-2">0%</p>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5 my-2">
+                        <div id="fuel-level-bar" class="bg-cyan-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="fuel-level-mt" class="text-lg font-medium text-secondary">0 / 0 MT</p>
+                </div>
+            </div>
+
+            <!-- KPI: Power -->
+            <div class="widget lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 sm:divide-x sm:divide-border-primary text-center">
+                <div class="flex flex-col justify-start px-4">
+                    <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider h-12 flex items-center justify-center">
+                        Live Vessel Load
+                        <svg class="info-icon" data-info-id="live-load" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                    <div id="load-adjustment-container" class="flex items-center justify-center gap-2 my-2">
+                        <button class="sim-knob sim-control" id="sim-load-dec">-</button>
+                        <p id="kpi-vessel-load-kw" class="text-5xl font-black text-headings">0 <span class="text-lg font-medium text-secondary align-middle">kW</span></p>
+                        <button class="sim-knob sim-control" id="sim-load-inc">+</button>
+                        <svg class="info-icon sim-control" data-info-id="load-simulation-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </div>
+                    <p id="kpi-vessel-load-pct" class="text-2xl font-bold text-cyan-400">(0%)</p>
+                </div>
+                 <div class="flex flex-col justify-start px-4">
+                    <div id="performance-kpi-header" class="text-sm font-semibold text-secondary uppercase tracking-wider h-12 flex items-center justify-center">
+                        <span id="performance-kpi-title">Load Efficiency</span>
+                        <svg class="info-icon" data-info-id="performance-baseline" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </div>
+                    <div class="flex items-center justify-center gap-3 my-2">
+                        <button id="perf-kpi-prev" class="perf-kpi-arrow text-2xl text-gray-600 hover:text-white transition-colors">&lt;</button>
+                        <p id="kpi-efficiency" class="text-5xl font-black text-green-400">0%</p>
+                        <button id="perf-kpi-next" class="perf-kpi-arrow text-2xl text-gray-600 hover:text-white transition-colors">&gt;</button>
+                    </div>
+                    <p id="kpi-performance-subtitle" class="text-xs text-secondary h-8">vs. Thermodynamic Optimum</p>
+                    <div class="h-8 mt-1 flex justify-center items-center gap-4">
+                        <button id="optimize-button" class="hidden px-4 py-1 text-sm rounded-md text-white font-semibold transition-colors">Optimize</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Widget: Engine Status -->
+            <div class="widget lg:col-span-3">
+                <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-6">Engine Status</h2>
+                <div id="engine-status-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-8 text-center">
+                    <!-- Engines will be populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Widget: Operational Status -->
+            <div class="widget lg:col-span-1 flex flex-col justify-center items-center text-center">
+                 <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-2">
+                    Operational Status
+                    <svg class="info-icon" data-info-id="operational-status-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                </h2>
+                 <p id="operationalStatus" class="text-2xl font-bold text-cyan-400">TRANSIT</p>
+            </div>
+
+            <!-- Compliance Widgets -->
+            <div id="compliance-widgets" class="lg:col-span-4 grid grid-cols-1 md:grid-cols-4 gap-6 hidden">
+                 <!-- Emissions Widget -->
+                <div class="widget md:col-span-1">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">
+                        Live Emissions (Est.)
+                        <svg class="info-icon" data-info-id="emissions-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-baseline">
+                            <span class="font-bold text-headings">CO₂</span>
+                            <div class="flex items-baseline gap-2">
+                                <span id="co2-rate" class="text-2xl font-black text-cyan-400">0</span>
+                                <span class="text-sm text-secondary">kg/h</span>
+                            </div>
+                        </div>
+                        <div class="h-28 w-full mt-2">
+                            <canvas id="emissionsBreakdownChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Accountability & Compliance Widgets -->
+            <div id="accountability-widgets" class="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
+                <!-- Bunkering Widget -->
+                <div class="widget">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">Bunker Operations</h2>
+                    <div id="bunker-ops-content" class="space-y-3">
+                        <p class="text-sm">Last Bunker Date: <span id="bunker-date-display" class="font-bold text-headings">N/A</span></p>
+                        <p class="text-sm">BDN Number: <span id="bunker-bdn-display" class="font-bold text-headings">N/A</span></p>
+                        <p class="text-sm">BDN Volume: <span id="bunker-volume-display" class="font-bold text-headings">0.0000 MT</span></p>
+                        <button id="log-bunker-button" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 rounded-md text-white font-semibold transition-colors">Log New Bunker</button>
+                        <button id="start-bunkering-button" class="w-full py-2 bg-yellow-600 hover:bg-yellow-500 rounded-md text-white font-semibold transition-colors hidden">Start Bunkering</button>
+                    </div>
+                    <div id="bunkering-diagram-container" class="hidden mt-4 pt-4 border-t border-border-primary">
+                        <div class="flex justify-around items-center text-center">
+                            <div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 1.79 4 4 4h8c2.21 0 4-1.79 4-4V7M4 7c0-2.21 1.79-4 4-4h8c2.21 0 4 1.79 4 4M4 7h16" />
+                                </svg>
+                                <p class="text-xs text-secondary mt-1">Bunker Source</p>
+                            </div>
+                            <div class="flex-grow flex flex-col items-center mx-4">
+                                <p id="bunkering-rate-display" class="text-sm font-bold text-cyan-400 h-6">0.0 MT/h</p>
+                                <div class="w-full h-2 rounded-full pipe-horizontal offline"></div>
+                            </div>
+                            <div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                <p class="text-xs text-secondary mt-1">Vessel Tanks</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ROB Widget -->
+                <div class="widget">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">
+                        Remaining on Board (ROB)
+                        <svg class="info-icon" data-info-id="rob-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                     <div class="space-y-2">
+                        <p class="text-sm">Calculated ROB: <span id="rob-calculated" class="font-bold text-headings">0.0 MT</span></p>
+                        <p class="text-sm">Measured ROB (Sounding): <span id="rob-manual" class="font-bold text-headings">0.0 MT</span></p>
+                        <div id="rob-kpi-container" class="p-2 rounded-md text-center mt-2">
+                            <p id="rob-kpi-title" class="font-bold text-sm uppercase">Fuel Consumed</p>
+                            <p id="rob-kpi-value" class="font-bold text-xl">0.0 MT</p>
+                        </div>
+                        <button id="log-sounding-button" class="w-full mt-2 py-2 bg-gray-600 hover:bg-gray-500 rounded-md text-white font-semibold transition-colors">Record Manual Sounding</button>
+                    </div>
+                </div>
+                <!-- Fuel Cargo Widget -->
+                <div id="fuel-cargo-widget" class="widget hidden">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">Fuel Cargo</h2>
+                    <div class="space-y-3">
+                        <p class="text-sm">Current Level: <span id="cargo-level-display" class="font-bold text-headings">0.0 / 0.0 MT</span></p>
+                        <p class="text-sm">Manual Sounding: <span id="cargo-sounding-display" class="font-bold text-headings">0.0 MT</span></p>
+                        <button id="log-cargo-op-button" class="w-full mt-2 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-md text-white font-semibold transition-colors">Log Cargo Operation</button>
+                        <button id="log-cargo-sounding-button" class="w-full mt-2 py-2 bg-gray-600 hover:bg-gray-500 rounded-md text-white font-semibold transition-colors">Record Manual Sounding</button>
+                    </div>
+                </div>
+                <!-- Simulation Widget -->
+                <div id="unaccounted-fuel-widget" class="widget">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">
+                        Simulate Unaccounted Fuel
+                        <svg class="info-icon" data-info-id="unaccounted-fuel-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                    <div class="flex flex-col items-center justify-center h-full">
+                        <p class="text-xs text-secondary mb-2">Inject a simulated fuel loss (e.g., a leak) to test accountability tracking.</p>
+                        <p id="unaccounted-fuel-display" class="text-red-400 h-6 mb-2"></p>
+                        <div class="flex justify-center items-center gap-4">
+                            <button class="sim-knob" id="sim-fuel-dec">-</button>
+                            <button class="sim-knob" id="sim-fuel-inc">+</button>
+                            <button class="sim-knob reset" id="sim-fuel-reset">&circlearrowleft;</button>
+                        </div>
+                        <p class="text-sm text-secondary mt-4">Actual ROB (Simulated): <span id="rob-actual-simulated" class="font-bold text-secondary">0.0 MT</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Widget -->
+            <div id="logs-widget" class="widget lg:col-span-4 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider">Logs</h2>
+                    <div class="flex items-center gap-2 p-1 rounded-lg log-tabs">
+                        <button data-log="bunker" class="px-3 py-1 text-sm rounded-md transition-colors active">Bunker Log</button>
+                        <button data-log="tank" class="px-3 py-1 text-sm rounded-md transition-colors">Tank Levels Log</button>
+                        <button data-log="cargo" class="px-3 py-1 text-sm rounded-md transition-colors hidden">Cargo Log</button>
+                    </div>
+                </div>
+                <!-- Log Content -->
+                <div id="bunker-log-content">
+                    <div class="h-72 mb-4"><canvas id="bunkerLogChart"></canvas></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-secondary">
+                            <thead class="text-xs text-primary uppercase bg-gray-800">
+                                <tr>
+                                    <th scope="col" class="px-4 py-2">Date</th>
+                                    <th scope="col" class="px-4 py-2">BDN Number</th>
+                                    <th scope="col" class="px-4 py-2">Fuel Type</th>
+                                    <th scope="col" class="px-4 py-2">Mass (MT)</th>
+                                    <th scope="col" class="px-4 py-2">Density</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bunker-log-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="tank-log-content" class="hidden">
+                    <div class="h-72 mb-4"><canvas id="tankLogChart"></canvas></div>
+                     <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-secondary">
+                            <thead class="text-xs text-primary uppercase bg-gray-800">
+                                <tr>
+                                    <th scope="col" class="px-4 py-2">Timestamp</th>
+                                    <th scope="col" class="px-4 py-2">Event Type</th>
+                                    <th scope="col" class="px-4 py-2">Value (MT)</th>
+                                    <th scope="col" class="px-4 py-2">Surveyor</th>
+                                    <th scope="col" class="px-4 py-2">Data Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tank-log-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="cargo-log-content" class="hidden">
+                    <!-- Cargo Log Table will be added here -->
+                    <p class="text-center">Cargo Operations Log coming soon.</p>
+                </div>
+            </div>
+
+            <!-- Widget: Combined Trend View -->
+            <div class="widget lg:col-span-4">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider">
+                        Trend View
+                        <svg class="info-icon" data-info-id="trend-view" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                    </h2>
+                    <div class="flex items-center gap-2" id="trend-toggle-buttons">
+                        <button class="trend-toggle px-3 py-1 text-sm rounded-md transition-colors active" data-trend="fuel">Fuel Rate</button>
+                        <button class="trend-toggle px-3 py-1 text-sm rounded-md transition-colors active" data-trend="load">Vessel Load</button>
+                        <button class="trend-toggle px-3 py-1 text-sm rounded-md transition-colors active" data-trend="efficiency">Efficiency</button>
+                    </div>
+                    <div id="link-scales-container" class="flex items-center gap-2">
+                        <label for="link-scales-toggle" class="text-sm text-secondary">Link Scales</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="link-scales-toggle" class="sr-only peer">
+                          <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                        </label>
+                        <svg class="info-icon" data-info-id="link-scales-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                        </div>
+                </div>
+                <div class="h-72">
+                    <canvas id="combinedTrendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Widget: Engine Load Profile Container -->
+            <div class="widget lg:col-span-4">
+                 <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-2">Total Engine Load Profile (Last 24H)</h2>
+                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-center">
+                    <!-- Load Profile Labels -->
+                    <div id="load-profile-labels" class="lg:col-span-1 md:col-span-1 space-y-3 text-sm">
+                        <!-- JS Populated -->
+                    </div>
+                    <!-- Donut Chart: Load Distribution -->
+                    <div class="md:col-span-1 lg:col-span-1 h-52 w-full">
+                         <canvas id="engineLoadDistributionChart"></canvas>
+                    </div>
+                    <!-- Donut Chart: Average Load -->
+                    <div class="md:col-span-1 lg:col-span-1 h-52 w-full">
+                        <div class="relative w-full h-full">
+                            <canvas id="averageEngineLoadChart"></canvas>
+                            <div id="average-load-display" class="absolute inset-0 flex flex-col justify-center items-center pointer-events-none">
+                                <span class="text-4xl font-black text-cyan-400 text-glow">0%</span>
+                                <span class="text-sm text-secondary uppercase">Avg. Load</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Avg Fuel Consumption -->
+                    <div class="md:col-span-1 lg:col-span-1 text-center">
+                         <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-2">Avg. Fuel Consumption</h2>
+                         <p id="avg-fuel-rate" class="text-4xl font-black text-cyan-400 text-glow">0</p>
+                         <p class="text-md font-medium text-secondary">kg/h</p>
+                    </div>
+                 </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="settingsModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+        <div class="modal-content w-full max-w-4xl rounded-lg shadow-xl p-6 max-h-full overflow-y-auto">
+            <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-headings">Configuration Settings</h2><button id="close-settings-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <form id="settings-form">
+                <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Vessel Presets</h3>
+                    <div id="vessel-presets-container" class="flex flex-wrap gap-2">
+                        <!-- JS Populated -->
+                    </div>
+                </div>
+                <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Simulation Controls</h3>
+                    <div class="flex items-center">
+                        <label for="toggle-simulation-enabled" class="text-sm text-headings font-medium">Enable Simulation Features</label>
+                        <label class="relative inline-flex items-center cursor-pointer ml-4">
+                            <input type="checkbox" id="toggle-simulation-enabled" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Load Profile Setpoints & Names</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div><label for="setpoint-name-high" class="text-sm text-secondary block">High Load Name</label><input type="text" id="setpoint-name-high" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-name-transit" class="text-sm text-secondary block">Transit Name</label><input type="text" id="setpoint-name-transit" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-name-low" class="text-sm text-secondary block">Low Load Name</label><input type="text" id="setpoint-name-low" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-name-idle" class="text-sm text-secondary block">Idle Name</label><input type="text" id="setpoint-name-idle" class="form-input w-full p-2 rounded-md"></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                        <div><label for="setpoint-high" class="text-sm text-secondary block">High Load > (%)</label><input type="number" id="setpoint-high" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-transit" class="text-sm text-secondary block">Transit > (%)</label><input type="number" id="setpoint-transit" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-low" class="text-sm text-secondary block">Low Load > (%)</label><input type="number" id="setpoint-low" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="setpoint-idle" class="text-sm text-secondary block">Idle < (%)</label><input type="number" id="setpoint-idle" class="form-input w-full p-2 rounded-md" disabled></div>
+                    </div>
+                </div>
+                 <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Baselines & Data Quality</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label for="learning-period" class="text-sm text-secondary block">Min. Learning Period (days)</label>
+                            <input type="number" id="learning-period" class="form-input w-full p-2 rounded-md">
+                        </div>
+                        <div>
+                            <label for="baseline-period" class="text-sm text-secondary block">Baseline Calculation Period</label>
+                            <select id="baseline-period" class="form-select w-full p-2 rounded-md">
+                                <option value="7">Last 7 Days</option>
+                                <option value="30">Last 30 Days</option>
+                                <option value="90">Last 90 Days</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="deviation-threshold" class="text-sm text-secondary block">Deviation Threshold (%)</label>
+                            <input type="number" id="deviation-threshold" class="form-input w-full p-2 rounded-md">
+                        </div>
+                        <div>
+                            <label for="deviation-time" class="text-sm text-secondary block">Deviation Time (s)</label>
+                            <input type="number" id="deviation-time" class="form-input w-full p-2 rounded-md">
+                        </div>
+                    </div>
+                    <div id="custom-date-range" class="grid grid-cols-2 gap-4 mt-4 hidden">
+                        <div><label for="baseline-start-date" class="text-sm text-secondary block">Start Date</label><input type="date" id="baseline-start-date" class="form-input w-full p-2 rounded-md"></div>
+                        <div><label for="baseline-end-date" class="text-sm text-secondary block">End Date</label><input type="date" id="baseline-end-date" class="form-input w-full p-2 rounded-md"></div>
+                    </div>
+                    <div class="mt-4">
+                        <button type="button" id="calculate-baseline-button" class="px-4 py-2 rounded-md bg-cyan-700 text-white hover:bg-cyan-600 transition">Calculate & Set Baseline</button>
+                    </div>
+                </div>
+                <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">24h Operational Profile (% of time)</h3>
+                    <div id="profile-sliders-container" class="space-y-4"></div>
+                </div>
+                <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Vessel Particulars</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                        <div class="flex items-center">
+                            <label for="toggle-auto-distribute" class="text-sm text-headings font-medium">Auto-distribute Load</label>
+                            <label class="relative inline-flex items-center cursor-pointer ml-4">
+                                <input type="checkbox" id="toggle-auto-distribute" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center">
+                            <label for="fuel-capacity" class="text-sm text-secondary block">Total Fuel Capacity (MT)</label>
+                            <input type="number" id="fuel-capacity" class="form-input w-full p-2 rounded-md ml-2">
+                        </div>
+                        <div class="flex items-center">
+                            <label for="engine-count" class="text-sm text-secondary block">Number of Main Engines</label>
+                            <input type="number" id="engine-count" min="1" max="8" class="form-input w-full p-2 rounded-md ml-2">
+                        </div>
+                        <div class="flex items-center" id="bunkering-flow-meter-container">
+                             <label for="toggle-bunkering-flow-meter" class="text-sm text-headings font-medium">Bunkering Flow Meter</label>
+                             <label class="relative inline-flex items-center cursor-pointer ml-4">
+                                 <input type="checkbox" id="toggle-bunkering-flow-meter" class="sr-only peer">
+                                 <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                             </label>
+                         </div>
+                    </div>
+
+                    <div id="engine-configs-container" class="space-y-4 mt-4"></div>
+                </div>
+                 <div class="mb-6 p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-2">Fuel Cargo Tank</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                         <div class="flex items-center">
+                             <label for="toggle-cargo-tank-enabled" class="text-sm text-headings font-medium">Enable Fuel Cargo Tank</label>
+                             <label class="relative inline-flex items-center cursor-pointer ml-4">
+                                 <input type="checkbox" id="toggle-cargo-tank-enabled" class="sr-only peer">
+                                 <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                             </label>
+                         </div>
+                         <div>
+                            <label for="cargo-tank-size" class="text-sm text-secondary block">Tank Size (MT)</label>
+                            <input type="number" id="cargo-tank-size" class="form-input w-full p-2 rounded-md">
+                        </div>
+                        <div>
+                            <label for="cargo-tank-level" class="text-sm text-secondary block">Initial Level (MT)</label>
+                            <input type="number" id="cargo-tank-level" class="form-input w-full p-2 rounded-md">
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">Optional Consumers</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-3 gap-4 items-center"><label class="flex items-center cursor-pointer col-span-1"><div class="relative"><input type="checkbox" id="toggle-emerg-gen-enabled" class="sr-only consumer-toggle"><div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div></div><div class="ml-3 text-headings font-medium">Emerg. Gen.</div></label><div class="col-span-2 grid grid-cols-2 gap-4"><div><label for="emerg-gen-size" class="text-sm text-secondary block">Size (kW)</label><input type="number" id="emerg-gen-size" class="form-input w-full p-2 rounded-md"></div><div><label for="emerg-gen-load" class="text-sm text-secondary block">Load (%)</label><input type="number" id="emerg-gen-load" data-consumer="emerg-gen" class="form-input w-full p-2 rounded-md consumer-load"></div></div></div>
+                        <div class="grid grid-cols-3 gap-4 items-center"><label class="flex items-center cursor-pointer col-span-1"><div class="relative"><input type="checkbox" id="toggle-boiler-enabled" class="sr-only consumer-toggle"><div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div></div><div class="ml-3 text-headings font-medium">Boiler</div></label><div class="col-span-2 grid grid-cols-2 gap-4"><div><label for="boiler-size" class="text-sm text-secondary block">Equiv. Size (kW)</label><input type="number" id="boiler-size" class="form-input w-full p-2 rounded-md"></div><div><label for="boiler-load" class="text-sm text-secondary block">Load (%)</label><input type="number" id="boiler-load" data-consumer="boiler" class="form-input w-full p-2 rounded-md consumer-load"></div></div></div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8"><button type="button" id="cancel-settings-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button><button type="submit" id="save-settings-button" class="px-4 py-2 rounded-md bg-cyan-600 text-white hover:bg-cyan-500 transition">Save & Apply</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="logBunkerModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+        <div class="modal-content w-full max-w-lg rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold text-headings">Log New Bunker Delivery</h2><button id="close-bunker-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <form id="log-bunker-form">
+                <div class="space-y-4">
+                    <div><label for="bunker-bdn" class="text-sm text-secondary block">BDN Number</label><input type="text" id="bunker-bdn" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="bunker-date" class="text-sm text-secondary block">Bunker Delivery Date</label><input type="date" id="bunker-date" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="bunker-fuel-type" class="text-sm text-secondary block">Fuel Type</label><select id="bunker-fuel-type" class="form-select w-full p-2 rounded-md"><option>VLSFO</option><option>HFO</option><option>MGO</option><option>LNG</option></select></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label for="bunker-mass" class="text-sm text-secondary block">Mass (mt)</label><input type="number" id="bunker-mass" step="0.0001" class="form-input w-full p-2 rounded-md" required></div>
+                        <div><label for="bunker-density" class="text-sm text-secondary block">Density (mt/m³)</label><input type="number" id="bunker-density" step="0.0001" class="form-input w-full p-2 rounded-md" required></div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8"><button type="button" id="cancel-bunker-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-4 py-2 rounded-md bg-cyan-600 text-white hover:bg-cyan-500 transition">Save Bunker</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="logSoundingModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+        <div class="modal-content w-full max-w-md rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-headings">Record Manual Sounding</h2><button id="close-sounding-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <form id="log-sounding-form">
+                <div class="space-y-4">
+                    <div><label for="manual-sounding-volume" class="text-sm text-secondary block">Manual Sounding Volume (MT)</label><input type="number" id="manual-sounding-volume" step="0.01" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="surveyor-name" class="text-sm text-secondary block">Surveyor Name</label><input type="text" id="surveyor-name" class="form-input w-full p-2 rounded-md" required></div>
+                </div>
+                <div class="flex justify-end gap-4 mt-6"><button type="button" id="cancel-sounding-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-4 py-2 rounded-md bg-cyan-600 text-white hover:bg-cyan-500 transition">Save Sounding</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="logCargoModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+        <div class="modal-content w-full max-w-lg rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold text-headings">Log Cargo Operation</h2><button id="close-cargo-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <form id="log-cargo-form">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm text-secondary block mb-2">Operation Type</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="cargo-op-type" value="offload" class="form-radio" checked>
+                                <span class="ml-2 text-primary">Offload (to another vessel)</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="cargo-op-type" value="onload" class="form-radio">
+                                <span class="ml-2 text-primary">Onload (from source)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div><label for="cargo-date" class="text-sm text-secondary block">Operation Date</label><input type="date" id="cargo-date" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="cargo-vessel" class="text-sm text-secondary block">Source/Destination Vessel</label><input type="text" id="cargo-vessel" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="cargo-volume" class="text-sm text-secondary block">Volume Transferred (MT)</label><input type="number" id="cargo-volume" step="0.01" class="form-input w-full p-2 rounded-md" required></div>
+                    <div><label for="cargo-surveyor" class="text-sm text-secondary block">Surveyor Name</label><input type="text" id="cargo-surveyor" class="form-input w-full p-2 rounded-md" required></div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8"><button type="button" id="cancel-cargo-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 transition">Save Operation</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="infoModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[60]">
+        <div class="modal-content w-full max-w-lg rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4"><h2 id="info-modal-title" class="text-xl font-bold text-headings">Information</h2><button id="close-info-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <div id="info-modal-content" class="text-primary space-y-4"></div>
+        </div>
+    </div>
+    <div id="sfocModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+        <div class="modal-content w-full max-w-xl rounded-lg shadow-xl p-6">
+             <div class="flex justify-between items-center mb-4">
+                <h2 id="sfoc-modal-title" class="text-xl font-bold text-headings">SFOC Curve</h2>
+                <svg class="info-icon" data-info-id="sfoc-explanation" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.055.491.208.556.385.092.252.035.582-.12.795-.155.214-.42.34-.746.34-.42 0-.75-.163-.925-.388-.175-.225-.215-.46-.172-.717.043-.257.162-.477.345-.616.182-.14.432-.2.75-.2.25 0 .45.03.59.083l.062.027a.532.532 0 0 1 .31.215l.712.818.305.354a.5.5 0 0 0 .884-.393l.305-.354-2.29-.287zM8 5.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+                <button id="close-sfoc-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button>
+            </div>
+            <div class="h-80"><canvas id="sfocChartCanvas"></canvas></div>
+        </div>
+    </div>
+    <div id="sfocEditorModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[60]">
+        <div class="modal-content w-full max-w-4xl rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="sfoc-editor-title" class="text-xl font-bold text-headings">Edit SFOC Curve</h2>
+                <button id="close-sfoc-editor-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold text-cyan-400 mb-2">Curve Data Points</h3>
+                    <form id="sfoc-editor-form" class="space-y-2">
+                        <!-- Inputs will be populated by JS -->
+                    </form>
+                </div>
+                <div class="h-80">
+                    <canvas id="sfocEditorChartCanvas"></canvas>
+                </div>
+            </div>
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" id="cancel-sfoc-edit-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button>
+                <button type="button" id="save-sfoc-edit-button" class="px-4 py-2 rounded-md bg-cyan-600 text-white hover:bg-cyan-500 transition">Save Curve</button>
+            </div>
+        </div>
+    </div>
+    <div id="optimizationModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[70]">
+        <div class="modal-content w-full max-w-md rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-headings">Optimization Advisory</h2>
+                <button id="close-optimization-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button>
+            </div>
+            <div class="text-primary space-y-4">
+                <p>Your current load distribution is inefficient.</p>
+                <p>Open EcoAdvisor for recommendations on how to reduce fuel consumption?</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            // --- GLOBAL STATE & CONFIGURATION ---
+            const defaultSfocCurve = [
+                {x: 10, y: 240}, {x: 25, y: 220}, {x: 50, y: 205}, {x: 75, y: 200}, {x: 100, y: 210}
+            ];
+
+            let config = {
+                totalFuelCapacityMT: 1000,
+                loadSetpoints: { high: 75, transit: 40, low: 10, names: { high: 'High Load', transit: 'Transit', low: 'Low Load', idle: 'Idle' }, profile24h: { high: 5, transit: 65, low: 25, idle: 5 }},
+                baselines: { high: 0, transit: 0, low: 0, idle: 0 },
+                dataQuality: { plausibilityCheck: 110, learningPeriodDays: 7, significantDeviationThreshold: 3, deviationDisplayTime: 4, baselinesSet: false, systemStartDate: Date.now() },
+                mainEngines: 4,
+                vessel: {
+                    autoDistributeLoad: true,
+                    bunkeringFlowMeter: { enabled: false }
+                },
+                fuelCargo: {
+                    enabled: false,
+                    sizeMt: 500,
+                    initialLevelMt: 450
+                },
+                engineData: [
+                    { id: 1, type: 'engine', name: 'Main Engine 1', sizeKw: 1600, load: 70, online: true, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) }, 
+                    { id: 2, type: 'engine', name: 'Main Engine 2', sizeKw: 1600, load: 65, online: true, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) },
+                    { id: 3, type: 'engine', name: 'Main Engine 3', sizeKw: 1600, load: 72, online: true, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) }, 
+                    { id: 4, type: 'engine', name: 'Main Engine 4', sizeKw: 1600, load: 69, online: true, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) },
+                ],
+                emergencyGen: { id: 5, type: 'emergency', name: 'Emerg. Gen.', sizeKw: 300, load: 0, online: false, enabled: true, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) },
+                boiler: { id: 6, type: 'boiler', name: 'Boiler', sizeKw: 150, load: 100, online: true, enabled: true, thermalEfficiency: 85 },
+                simulation: { enabled: true, bunkeringRateMTH: 150.0 },
+                emissions: {
+                    co2: { factor: 3.114, label: 'CO₂' }, // Factors for VLSFO (kg/kg fuel)
+                    sox: { factor: 0.005, label: 'SOx' }, // Assumes 0.5% Sulphur
+                    nox: { factor: 0.018, label: 'NOx' }  // Tier II average
+                }
+            };
+            
+            let accountabilityData = {
+                lastBunkerDate: '2025-07-28', lastBdnNumber: 'BDN-12345', lastBunkerVolumeMT: 550.2, lastFuelType: 'VLSFO', lastDensity: 0.9750,
+                manualSoundingMT: 550.2, calculatedRobMT: 550.2, simulatedActualRobMT: 550.2, fuelConsumedSinceSoundingMT: 0, lastBunkerTimestamp: new Date('2025-07-28T12:00:00Z').getTime(),
+                bunkerHistory: [], tankLevelHistory: []
+            };
+
+            let cargoData = {
+                currentLevelMt: 0,
+                manualSoundingMt: 0,
+                operationHistory: []
+            };
+
+            const vesselPresets = {
+                TUG: { fuelCap: 250, engines: 2, engineData: [{size: 2500}, {size: 2500}], boiler: false },
+                PSV: { fuelCap: 800, engines: 4, engineData: [{size: 1600}, {size: 1600}, {size: 1600}, {size: 1600}], boiler: true },
+                AHTS: { fuelCap: 1200, engines: 4, engineData: [{size: 3000}, {size: 3000}, {size: 1500}, {size: 1500}], boiler: true },
+                CSOV: { fuelCap: 1000, engines: 4, engineData: [{size: 2200}, {size: 2200}, {size: 2200}, {size: 2200}], boiler: true },
+                OSV: { fuelCap: 900, engines: 4, engineData: [{size: 1800}, {size: 1800}, {size: 1800}, {size: 1800}], boiler: true },
+                WTIV: { fuelCap: 2000, engines: 6, engineData: [{size: 3500}, {size: 3500}, {size: 3500}, {size: 3500}, {size: 1500}, {size: 1500}], boiler: true },
+                MODU: { fuelCap: 3000, engines: 8, engineData: [{size: 4000}, {size: 4000}, {size: 4000}, {size: 4000}, {size: 4000}, {size: 4000}, {size: 4000}, {size: 4000}], boiler: true },
+            };
+
+            let activeTier = 'Core';
+            let performanceKpiMode = 'efficiency'; // 'efficiency' or 'baseline'
+            let isBunkering = false;
+            let combinedTrendChart, engineLoadDistributionChart, averageEngineLoadChart, bunkerLogChart, tankLogChart, sfocChart, emissionsBreakdownChart, sfocEditorChart;
+            let fuelRateDataset, vesselLoadDataset, efficiencyDataset;
+            let simulatedLeakKgH = 0;
+            let targetVesselLoadKw = 0;
+            let robUpdateInterval, trendUpdateInterval;
+            let lastCalculatedTotals = {};
+            let currentlyEditingEngineIndex = -1;
+
+            // --- DOM ELEMENT REFERENCES ---
+            const dom = {
+                body: document.body,
+                settingsModal: document.getElementById('settingsModal'), logBunkerModal: document.getElementById('logBunkerModal'), logSoundingModal: document.getElementById('logSoundingModal'),
+                logCargoModal: document.getElementById('logCargoModal'),
+                infoModal: document.getElementById('infoModal'), sfocModal: document.getElementById('sfocModal'), sfocEditorModal: document.getElementById('sfocEditorModal'),
+                optimizationModal: document.getElementById('optimizationModal'),
+                settingsButton: document.getElementById('settings-button'), closeSettingsButton: document.getElementById('close-settings-button'), cancelSettingsButton: document.getElementById('cancel-settings-button'),
+                settingsForm: document.getElementById('settings-form'), tierSelector: document.querySelector('.tier-selector'), logBunkerButton: document.getElementById('log-bunker-button'),
+                startBunkeringButton: document.getElementById('start-bunkering-button'),
+                logSoundingButton: document.getElementById('log-sounding-button'), logTabs: document.querySelector('.log-tabs'), engineStatusContainer: document.getElementById('engine-status-container'),
+                linkScalesToggle: document.getElementById('link-scales-toggle'), linkScalesContainer: document.getElementById('link-scales-container'),
+                calculateBaselineButton: document.getElementById('calculate-baseline-button'),
+                baselinePeriodSelect: document.getElementById('baseline-period'),
+                vesselPresetsContainer: document.getElementById('vessel-presets-container'),
+                optimizeButton: document.getElementById('optimize-button'),
+                closeOptimizationButton: document.getElementById('close-optimization-button'),
+                perfKpiPrev: document.getElementById('perf-kpi-prev'),
+                perfKpiNext: document.getElementById('perf-kpi-next'),
+                themeToggleButton: document.getElementById('theme-toggle-button'),
+                themeIconSun: document.getElementById('theme-icon-sun'),
+                themeIconMoon: document.getElementById('theme-icon-moon'),
+            };
+            
+            // --- EVENT LISTENERS ---
+            dom.settingsButton.addEventListener('click', () => { populateSettingsModal(); dom.settingsModal.classList.remove('hidden'); });
+            dom.closeSettingsButton.addEventListener('click', () => dom.settingsModal.classList.add('hidden'));
+            dom.cancelSettingsButton.addEventListener('click', () => dom.settingsModal.classList.add('hidden'));
+            dom.logBunkerButton.addEventListener('click', () => dom.logBunkerModal.classList.remove('hidden'));
+            dom.startBunkeringButton.addEventListener('click', handleToggleBunkering);
+            document.getElementById('close-bunker-button').addEventListener('click', () => dom.logBunkerModal.classList.add('hidden'));
+            document.getElementById('cancel-bunker-button').addEventListener('click', () => dom.logBunkerModal.classList.add('hidden'));
+            document.getElementById('log-bunker-form').addEventListener('submit', handleSaveBunker);
+            dom.logSoundingButton.addEventListener('click', () => dom.logSoundingModal.classList.remove('hidden'));
+            document.getElementById('close-sounding-button').addEventListener('click', () => dom.logSoundingModal.classList.add('hidden'));
+            document.getElementById('cancel-sounding-button').addEventListener('click', () => dom.logSoundingModal.classList.add('hidden'));
+            document.getElementById('log-sounding-form').addEventListener('submit', handleSaveSounding);
+            
+            // Cargo Modal Listeners
+            document.getElementById('log-cargo-op-button')?.addEventListener('click', () => {
+                 document.getElementById('log-cargo-form').reset();
+                 dom.logCargoModal.classList.remove('hidden')
+            });
+            document.getElementById('close-cargo-button').addEventListener('click', () => dom.logCargoModal.classList.add('hidden'));
+            document.getElementById('cancel-cargo-button').addEventListener('click', () => dom.logCargoModal.classList.add('hidden'));
+            document.getElementById('log-cargo-form').addEventListener('submit', handleSaveCargoOperation);
+
+
+            dom.tierSelector.addEventListener('click', (e) => { if(e.target.tagName === 'BUTTON') setTier(e.target.dataset.tier); });
+            dom.settingsForm.addEventListener('submit', handleSaveSettings);
+            document.getElementById('engine-count').addEventListener('input', updateEngineConfigInputs);
+            document.getElementById('setpoint-low').addEventListener('input', (e) => { document.getElementById('setpoint-idle').value = e.target.value; });
+            document.getElementById('trend-toggle-buttons').addEventListener('click', handleTrendToggle);
+            dom.linkScalesToggle.addEventListener('change', handleLinkScalesToggle);
+            dom.logTabs.addEventListener('click', handleLogTabSwitch);
+            dom.engineStatusContainer.addEventListener('click', handleEngineClick);
+            document.getElementById('close-info-button').addEventListener('click', () => dom.infoModal.classList.add('hidden'));
+            document.getElementById('close-sfoc-button').addEventListener('click', () => dom.sfocModal.classList.add('hidden'));
+            document.body.addEventListener('click', (e) => { if(e.target.closest('.info-icon')) handleInfoClick(e.target.closest('.info-icon')); });
+            dom.calculateBaselineButton.addEventListener('click', handleCalculateBaseline);
+            dom.baselinePeriodSelect.addEventListener('change', (e) => {
+                document.getElementById('custom-date-range').classList.toggle('hidden', e.target.value !== 'custom');
+            });
+            dom.vesselPresetsContainer.addEventListener('click', (e) => {
+                if(e.target.closest('.preset-btn')) {
+                    applyVesselPreset(e.target.closest('.preset-btn').dataset.preset);
+                }
+            });
+            dom.settingsForm.addEventListener('input', (e) => {
+                if (!e.target.closest('#vessel-presets-container')) {
+                   clearActivePreset();
+                }
+            });
+            
+            // Event delegation for dynamic engine config inputs
+            document.getElementById('engine-configs-container').addEventListener('input', (e) => {
+                const target = e.target;
+                const engineIndex = parseInt(target.dataset.engineIndex);
+                if (isNaN(engineIndex)) return;
+
+                const engineRow = target.closest('.grid');
+                if (!engineRow) return;
+
+                const sizeInput = engineRow.querySelector('input[id^="engine-size-"]');
+                const sizeKw = parseFloat(sizeInput.value) || 0;
+                
+                const pctSlider = engineRow.querySelector('input[id^="engine-load-pct-"]');
+                const kwInput = engineRow.querySelector('input[id^="engine-load-kw-"]');
+                const pctDisplay = engineRow.querySelector('span[id^="engine-load-pct-display-"]');
+
+                if (target === pctSlider) { // Slider changed
+                    const pctValue = parseFloat(target.value);
+                    const kwValue = (pctValue / 100) * sizeKw;
+                    kwInput.value = kwValue.toFixed(0);
+                    pctDisplay.textContent = `${pctValue.toFixed(0)}%`;
+                } else if (target === kwInput) { // kW input changed
+                    const kwValue = parseFloat(target.value);
+                    let pctValue = sizeKw > 0 ? (kwValue / sizeKw) * 100 : 0;
+                    pctValue = Math.max(0, Math.min(100, pctValue)); // Clamp between 0 and 100
+                    pctSlider.value = pctValue;
+                    pctDisplay.textContent = `${pctValue.toFixed(0)}%`;
+                }
+            });
+
+            document.getElementById('engine-configs-container').addEventListener('change', (e) => {
+                if (e.target.matches('input[type="checkbox"].consumer-toggle')) {
+                    handleEngineToggle(e);
+                }
+            });
+
+
+            document.getElementById('sim-load-inc').addEventListener('click', () => adjustVesselLoad(100));
+            document.getElementById('sim-load-dec').addEventListener('click', () => adjustVesselLoad(-100));
+            document.getElementById('sim-fuel-inc').addEventListener('click', () => adjustFuelLeak(10));
+            document.getElementById('sim-fuel-reset').addEventListener('click', () => adjustFuelLeak(0, true));
+            document.getElementById('sim-fuel-dec').addEventListener('click', () => adjustFuelLeak(-10));
+            document.getElementById('engine-configs-container').addEventListener('click', (e) => {
+                if (e.target.classList.contains('edit-sfoc-btn')) {
+                    const engineIndex = parseInt(e.target.dataset.engineIndex);
+                    openSfocEditor(engineIndex);
+                }
+            });
+            document.getElementById('close-sfoc-editor-button').addEventListener('click', () => dom.sfocEditorModal.classList.add('hidden'));
+            document.getElementById('cancel-sfoc-edit-button').addEventListener('click', () => dom.sfocEditorModal.classList.add('hidden'));
+            document.getElementById('save-sfoc-edit-button').addEventListener('click', handleSaveSfocCurve);
+            document.getElementById('sfoc-editor-form').addEventListener('input', updateSfocEditorChart);
+            dom.optimizeButton.addEventListener('click', () => dom.optimizationModal.classList.remove('hidden'));
+            dom.closeOptimizationButton.addEventListener('click', () => dom.optimizationModal.classList.add('hidden'));
+            dom.perfKpiPrev.addEventListener('click', switchPerformanceKpiMode);
+            dom.perfKpiNext.addEventListener('click', switchPerformanceKpiMode);
+            dom.themeToggleButton.addEventListener('click', toggleTheme);
+
+
+            // --- INITIALIZATION ---
+            initializeCharts();
+            populatePresets();
+            setTier('Core');
+            
+            // --- TIER MANAGEMENT ---
+            function setTier(tierName) {
+                activeTier = tierName;
+                document.getElementById('tier-name').textContent = tierName;
+                dom.tierSelector.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.tier === tierName));
+                (activeTier === 'Accountability' || activeTier === 'Compliance') ? startRobCalculation() : stopRobCalculation();
+                renderDashboard();
+            }
+
+            // --- MAIN RENDER FUNCTION ---
+            function renderDashboard() {
+                updateTime();
+                calculateAndUpdateTotals();
+                renderEngineStatus();
+                updateLoadProfileLabels();
+                updateTierSpecificElements();
+                updateRobDisplay();
+                updateFuelLevelKpi();
+                updateCargoDisplay();
+                renderBunkerLog();
+                renderTankLevelLog();
+            }
+
+            function updateTierSpecificElements() {
+                const accountabilityWidgets = document.getElementById('accountability-widgets');
+                const complianceWidgets = document.getElementById('compliance-widgets');
+                const logsWidget = document.getElementById('logs-widget');
+                const fuelRateLabel = document.getElementById('fuel-rate-label');
+                const unaccountedFuelWidget = document.getElementById('unaccounted-fuel-widget');
+                const loadAdjustmentControls = document.querySelectorAll('#load-adjustment-container .sim-control');
+                const fuelLevelKpi = document.getElementById('fuel-level-kpi-container');
+                const fuelKpiWidget = document.getElementById('fuel-kpi-widget');
+                const fuelCargoWidget = document.getElementById('fuel-cargo-widget');
+                const cargoLogTab = document.querySelector('[data-log="cargo"]');
+                const bunkeringDiagram = document.getElementById('bunkering-diagram-container');
+
+                const showAccountability = activeTier === 'Accountability' || activeTier === 'Compliance';
+                const showCompliance = activeTier === 'Compliance';
+                
+                // Toggle visibility based on tier
+                accountabilityWidgets.classList.toggle('hidden', !showAccountability);
+                complianceWidgets.classList.toggle('hidden', !showCompliance);
+                logsWidget.classList.toggle('hidden', !showAccountability);
+                fuelLevelKpi.classList.toggle('hidden', !showAccountability);
+                
+                // Cargo visibility
+                const showCargo = showAccountability && config.fuelCargo.enabled;
+                fuelCargoWidget.classList.toggle('hidden', !showCargo);
+                cargoLogTab.classList.toggle('hidden', !showCargo);
+
+                // Flow Meter visibility
+                const showBunkeringTools = showCompliance && config.vessel.bunkeringFlowMeter.enabled;
+                dom.startBunkeringButton.classList.toggle('hidden', !showBunkeringTools);
+                bunkeringDiagram.classList.toggle('hidden', !showBunkeringTools);
+
+                // Adjust fuel widget layout for Core tier
+                fuelKpiWidget.classList.toggle('sm:grid-cols-2', showAccountability);
+                fuelKpiWidget.classList.toggle('sm:divide-x', showAccountability);
+                fuelKpiWidget.classList.toggle('sm:divide-border-primary', showAccountability);
+
+                // Toggle visibility based on simulation master switch
+                loadAdjustmentControls.forEach(el => el.classList.toggle('hidden', !config.simulation.enabled));
+                unaccountedFuelWidget.classList.toggle('hidden', !config.simulation.enabled || !showAccountability);
+                
+                // Update fuel rate label text
+                const fuelRateLabelContent = document.getElementById('fuel-rate-label').childNodes[0];
+                if (activeTier === 'Compliance') {
+                    fuelRateLabelContent.nodeValue = 'Live Fuel Rate (Measured) ';
+                } else {
+                    fuelRateLabelContent.nodeValue = 'Live Fuel Rate (Estimated) ';
+                }
+            }
+
+            // --- ACCOUNTABILITY & LOGS LOGIC ---
+            function showInfoMessage(title, message) {
+                document.getElementById('info-modal-title').textContent = title;
+                document.getElementById('info-modal-content').innerHTML = `<p>${message}</p>`;
+                dom.infoModal.classList.remove('hidden');
+            }
+
+            function handleSaveBunker(e) { e.preventDefault(); const bdn = { date: document.getElementById('bunker-date').value, mass: parseFloat(document.getElementById('bunker-mass').value), bdn: document.getElementById('bunker-bdn').value, fuelType: document.getElementById('bunker-fuel-type').value, density: parseFloat(document.getElementById('bunker-density').value), timestamp: new Date(document.getElementById('bunker-date').value + "T12:00:00Z").getTime() }; if (!bdn.date || !bdn.bdn || isNaN(bdn.mass) || bdn.mass < 0 || isNaN(bdn.density) || bdn.density < 0) return; Object.assign(accountabilityData, { lastBunkerDate: bdn.date, lastBdnNumber: bdn.bdn, lastBunkerVolumeMT: bdn.mass, lastFuelType: bdn.fuelType, lastDensity: bdn.density, calculatedRobMT: bdn.mass, manualSoundingMT: bdn.mass, simulatedActualRobMT: bdn.mass, lastBunkerTimestamp: bdn.timestamp }); accountabilityData.bunkerHistory.push(bdn); accountabilityData.tankLevelHistory.push({ timestamp: bdn.timestamp, type: 'Bunker', value: bdn.mass, surveyor: 'System', dataSource: 'BDN' }); renderDashboard(); dom.logBunkerModal.classList.add('hidden'); document.getElementById('log-bunker-form').reset(); }
+            function handleSaveSounding(e) {
+                e.preventDefault();
+                const manualSoundingValue = parseFloat(document.getElementById('manual-sounding-volume').value);
+                const surveyor = document.getElementById('surveyor-name').value;
+                if (isNaN(manualSoundingValue) || manualSoundingValue < 0 || !surveyor) return;
+
+                const deviation = manualSoundingValue - accountabilityData.calculatedRobMT;
+                const deviationPercent = (accountabilityData.calculatedRobMT > 0) ? (deviation / accountabilityData.calculatedRobMT) * 100 : 0;
+                const dataSource = activeTier === 'Compliance' ? 'Measured' : 'Estimated';
+
+                // Log the deviation event
+                accountabilityData.tankLevelHistory.push({
+                    timestamp: Date.now(),
+                    type: 'Deviation',
+                    value: deviation,
+                    surveyor: surveyor,
+                    dataSource: dataSource
+                });
+                
+                // Log the new sounding value
+                accountabilityData.tankLevelHistory.push({
+                    timestamp: Date.now() + 1, // ensure unique timestamp
+                    type: 'Sounding',
+                    value: manualSoundingValue,
+                    surveyor: surveyor,
+                    dataSource: 'Manual'
+                });
+
+
+                // Now, recalibrate the system
+                accountabilityData.manualSoundingMT = manualSoundingValue;
+                accountabilityData.calculatedRobMT = manualSoundingValue;
+                accountabilityData.fuelConsumedSinceSoundingMT = 0; // Reset the counter
+                
+                // Also adjust the simulated actual ROB to maintain the simulated leak difference
+                const simulatedDifference = accountabilityData.calculatedRobMT - accountabilityData.simulatedActualRobMT;
+                accountabilityData.simulatedActualRobMT = manualSoundingValue - simulatedDifference;
+
+                // Trigger UI flash
+                const kpiContainer = document.getElementById('rob-kpi-container');
+                const kpiTitle = document.getElementById('rob-kpi-title');
+                const kpiValue = document.getElementById('rob-kpi-value');
+
+                kpiTitle.textContent = "Deviation";
+                kpiValue.innerHTML = `${deviation >= 0 ? '+' : ''}${deviation.toFixed(2)} MT <span class="text-sm">(${deviationPercent.toFixed(1)}%)</span>`;
+                kpiContainer.classList.add(deviation < 0 ? 'flash-red' : 'flash-green');
+
+                setTimeout(() => {
+                    kpiContainer.classList.remove('flash-red', 'flash-green');
+                    kpiTitle.textContent = 'Fuel Consumed';
+                    updateRobDisplay();
+                }, config.dataQuality.deviationDisplayTime * 1000);
+
+                renderDashboard();
+                dom.logSoundingModal.classList.add('hidden');
+                document.getElementById('log-sounding-form').reset();
+            }
+            
+            function handleSaveCargoOperation(e) {
+                e.preventDefault();
+                const operationType = document.querySelector('input[name="cargo-op-type"]:checked').value;
+                const volume = parseFloat(document.getElementById('cargo-volume').value);
+                const vessel = document.getElementById('cargo-vessel').value;
+                const surveyor = document.getElementById('cargo-surveyor').value;
+                const date = document.getElementById('cargo-date').value;
+
+                if (isNaN(volume) || volume <= 0 || !vessel || !surveyor || !date) {
+                    showInfoMessage('Invalid Input', 'Please fill out all fields with valid values.');
+                    return;
+                }
+
+                if (operationType === 'offload') {
+                    if (volume > cargoData.currentLevelMt) {
+                        showInfoMessage('Operation Error', 'Cannot offload more fuel than is in the cargo tank.');
+                        return;
+                    }
+                    cargoData.currentLevelMt -= volume;
+                } else { // onload
+                    const newLevel = cargoData.currentLevelMt + volume;
+                    if (newLevel > config.fuelCargo.sizeMt) {
+                        showInfoMessage('Operation Error', 'Cannot load more fuel than the cargo tank capacity.');
+                        return;
+                    }
+                    cargoData.currentLevelMt += volume;
+                }
+
+                cargoData.operationHistory.push({
+                    timestamp: new Date(date + "T12:00:00Z").getTime(),
+                    type: operationType,
+                    volume: volume,
+                    vessel: vessel,
+                    surveyor: surveyor
+                });
+
+                dom.logCargoModal.classList.add('hidden');
+                document.getElementById('log-cargo-form').reset();
+                renderDashboard();
+            }
+
+            function startRobCalculation() { if (robUpdateInterval) clearInterval(robUpdateInterval); robUpdateInterval = setInterval(() => { const { avgFuel } = calculate24hAverages(); const fuelConsumedPerHourMT = avgFuel / 1000; const unaccountedFuelPerHourMT = simulatedLeakKgH / 1000; const fuelConsumedPerIntervalMT = fuelConsumedPerHourMT / (3600 / 2); const unaccountedFuelPerIntervalMT = unaccountedFuelPerHourMT / (3600 / 2); accountabilityData.calculatedRobMT -= fuelConsumedPerIntervalMT; accountabilityData.simulatedActualRobMT -= (fuelConsumedPerIntervalMT + unaccountedFuelPerIntervalMT); accountabilityData.fuelConsumedSinceSoundingMT += fuelConsumedPerIntervalMT; if (activeTier === 'Accountability' || activeTier === 'Compliance') { updateRobDisplay(); if (tankLogChart.data.datasets.length > 0) { tankLogChart.data.datasets[0].data.push({x: Date.now(), y: accountabilityData.calculatedRobMT}); tankLogChart.update('none'); } } }, 2000); }
+            function stopRobCalculation() { clearInterval(robUpdateInterval); }
+            function updateRobDisplay() {
+                document.getElementById('bunker-date-display').textContent = accountabilityData.lastBunkerDate;
+                document.getElementById('bunker-bdn-display').textContent = accountabilityData.lastBdnNumber;
+                document.getElementById('bunker-volume-display').textContent = `${accountabilityData.lastBunkerVolumeMT.toFixed(4)} MT`;
+                document.getElementById('rob-calculated').textContent = `${Math.max(0, accountabilityData.calculatedRobMT).toFixed(2)} MT`;
+                document.getElementById('rob-manual').textContent = `${accountabilityData.manualSoundingMT.toFixed(2)} MT`;
+                document.getElementById('rob-actual-simulated').textContent = `${Math.max(0, accountabilityData.simulatedActualRobMT).toFixed(2)} MT`;
+                
+                // Update the dynamic KPI
+                const kpiTitle = document.getElementById('rob-kpi-title');
+                if (kpiTitle.textContent !== "Deviation") {
+                    document.getElementById('rob-kpi-title').textContent = 'Fuel Consumed';
+                    document.getElementById('rob-kpi-value').textContent = `${accountabilityData.fuelConsumedSinceSoundingMT.toFixed(2)} MT`;
+                }
+            }
+            function updateCargoDisplay() {
+                if(config.fuelCargo.enabled) {
+                    document.getElementById('cargo-level-display').textContent = `${cargoData.currentLevelMt.toFixed(2)} / ${config.fuelCargo.sizeMt.toFixed(2)} MT`;
+                    document.getElementById('cargo-sounding-display').textContent = `${cargoData.manualSoundingMt.toFixed(2)} MT`;
+                }
+            }
+            function handleLogTabSwitch(e) { if (!e.target.matches('button')) return; const targetLog = e.target.dataset.log; dom.logTabs.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.log === targetLog)); document.getElementById('bunker-log-content').classList.toggle('hidden', targetLog !== 'bunker'); document.getElementById('tank-log-content').classList.toggle('hidden', targetLog !== 'tank'); document.getElementById('cargo-log-content').classList.toggle('hidden', targetLog !== 'cargo'); }
+            function renderBunkerLog() { const tableBody = document.getElementById('bunker-log-table'); tableBody.innerHTML = ''; accountabilityData.bunkerHistory.forEach(b => { const row = tableBody.insertRow(); row.innerHTML = `<td class="px-4 py-2">${b.date}</td><td class="px-4 py-2">${b.bdn}</td><td class="px-4 py-2">${b.fuelType}</td><td class="px-4 py-2">${b.mass.toFixed(4)}</td><td class="px-4 py-2">${b.density.toFixed(4)}</td>`; }); bunkerLogChart.data.datasets[0].data = accountabilityData.bunkerHistory.map(b => ({x: b.timestamp, y: b.mass})); bunkerLogChart.update(); }
+            function renderTankLevelLog() {
+                const tableBody = document.getElementById('tank-log-table');
+                tableBody.innerHTML = '';
+                accountabilityData.tankLevelHistory.sort((a,b) => b.timestamp - a.timestamp).forEach(t => {
+                    const row = tableBody.insertRow();
+                    let valueCell = `${t.value.toFixed(2)}`;
+                    if (t.type === 'Deviation') {
+                        valueCell = `<span class="${t.value >= 0 ? 'text-green-400' : 'text-red-400'}">${t.value >= 0 ? '+' : ''}${t.value.toFixed(2)}</span>`;
+                    }
+                    row.innerHTML = `<td class="px-4 py-2">${new Date(t.timestamp).toLocaleString()}</td><td class="px-4 py-2">${t.type}</td><td class="px-4 py-2">${valueCell}</td><td class="px-4 py-2">${t.surveyor}</td><td class="px-4 py-2">${t.dataSource || 'N/A'}</td>`;
+                });
+                tankLogChart.data.datasets[1].data = accountabilityData.tankLevelHistory.filter(t => t.type === 'Sounding').map(t => ({x: t.timestamp, y: t.value}));
+                tankLogChart.data.datasets[2].data = accountabilityData.tankLevelHistory.filter(t => t.type === 'Bunker').map(t => ({x: t.timestamp, y: t.value}));
+                tankLogChart.update();
+            }
+
+            // --- DASHBOARD RENDER LOGIC ---
+            function updateTime() { 
+                const timeEl = document.getElementById('current-time'); 
+                if (timeEl) {
+                    const now = new Date();
+                    const options = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+                    timeEl.textContent = now.toLocaleString('en-GB', options).replace(/,/g, '');
+                }
+            }
+            setInterval(updateTime, 1000);
+            
+            function updateOperationalStatus(load) { 
+                const statusEl = document.getElementById('operationalStatus');
+                if (isBunkering) {
+                    statusEl.textContent = 'BUNKERING';
+                    statusEl.classList.add('text-yellow-400');
+                } else {
+                    const mode = getOperationalMode(load);
+                    statusEl.textContent = config.loadSetpoints.names[mode];
+                    statusEl.classList.remove('text-yellow-400');
+                }
+            }
+
+            function handleToggleBunkering() {
+                isBunkering = !isBunkering;
+                dom.startBunkeringButton.textContent = isBunkering ? 'Stop Bunkering' : 'Start Bunkering';
+                dom.startBunkeringButton.classList.toggle('bg-red-600', isBunkering);
+                dom.startBunkeringButton.classList.toggle('hover:bg-red-500', isBunkering);
+                dom.startBunkeringButton.classList.toggle('bg-yellow-600', !isBunkering);
+                dom.startBunkeringButton.classList.toggle('hover:bg-yellow-500', !isBunkering);
+                
+                const rateDisplay = document.getElementById('bunkering-rate-display');
+                const pipe = document.querySelector('#bunkering-diagram-container .pipe-horizontal');
+                if(isBunkering) {
+                    rateDisplay.textContent = `${config.simulation.bunkeringRateMTH.toFixed(1)} MT/h`;
+                    pipe.classList.add('active');
+                    pipe.classList.remove('offline');
+                } else {
+                    rateDisplay.textContent = '0.0 MT/h';
+                    pipe.classList.remove('active');
+                    pipe.classList.add('offline');
+                }
+
+                renderDashboard();
+            }
+
+            function getOperationalMode(load) { const { high, transit, low } = config.loadSetpoints; if (load > high) return 'high'; if (load >= transit) return 'transit'; if (load >= low) return 'low'; return 'idle'; }
+            function updateLoadProfileLabels() { const container = document.getElementById('load-profile-labels'); const { names, high, transit, low } = config.loadSetpoints; container.innerHTML = `<div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full" style="background-color: #67e8f9;"></div><span class="font-bold text-headings">${names.high}</span><span class="text-secondary">(>${high}%)</span></div><div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full" style="background-color: #0891b2;"></div><span class="font-bold text-headings">${names.transit}</span><span class="text-secondary">(${transit}-${high}%)</span></div><div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full" style="background-color: #0e7490;"></div><span class="font-bold text-headings">${names.low}</span><span class="text-secondary">(${low}-${transit}%)</span></div><div class="flex items-center gap-3"><div class="w-3 h-3 rounded-full" style="background-color: #a5f3fc;"></div><span class="font-bold text-headings">${names.idle}</span><span class="text-secondary">(<${low}%)</span></div>`; }
+            function renderEngineStatus() { const container = document.getElementById('engine-status-container'); container.innerHTML = ''; let allConsumers = [...config.engineData, ...(config.emergencyGen.enabled ? [config.emergencyGen] : []), ...(config.boiler.enabled ? [config.boiler] : [])]; const showFlow = activeTier === 'Compliance'; allConsumers.forEach(item => { const isEmergency = item.type === 'emergency'; const isBoiler = item.type === 'boiler'; let titleColor = 'text-headings'; if (isEmergency) titleColor = item.online ? 'text-yellow-400' : 'text-yellow-600'; if (isBoiler) titleColor = item.online ? 'text-orange-400' : 'text-orange-600'; const itemBlock = document.createElement('div'); itemBlock.className = `engine-block flex flex-col items-center ${item.online ? 'online' : 'offline'}`; itemBlock.dataset.id = item.id; itemBlock.dataset.type = item.type; const generatedKw = item.online ? item.sizeKw * (item.load / 100) : 0; const { flowIn, flowOut } = calculateFuelFlow(item, item.online ? item.load : 0, isBoiler); const flowHTML = showFlow ? `<div class="flow-diagram flex flex-col items-center gap-1 mt-2"><div class="text-xs text-primary">IN: ${flowIn.toFixed(1)} kg/h</div><div class="pipe ${item.online ? 'active' : 'offline'}"></div>${!isBoiler ? `<div class="text-xs text-secondary">OUT: ${flowOut.toFixed(1)} kg/h</div>` : ''}</div>` : ''; itemBlock.innerHTML = `<h3 class="font-bold ${titleColor} mb-2">${item.name}</h3><div class="w-full max-w-[100px] mb-2"><svg viewBox="0 0 100 20" class="w-full"><rect class="engine-symbol-bg" x="0" y="0" width="100" height="20" rx="4"></rect><rect class="engine-symbol-fill" x="0" y="0" width="${item.online ? item.load : 0}" height="20" rx="4"></rect></svg></div><div class="text-center"><p class="text-sm font-bold">${item.online ? item.load.toFixed(0) + '%' : 'OFFLINE'}</p><p class="text-xs text-secondary">${item.online ? `(${generatedKw.toFixed(0)} / ${item.sizeKw} kW)` : `(${item.sizeKw} kW)`}</p></div>${flowHTML}`; container.appendChild(itemBlock); }); }
+            function calculateAndUpdateTotals() {
+                let engineFuelRate = 0;
+                let otherFuelRate = 0;
+                let totalLoadKw = 0;
+                let totalCapacityKw = 0;
+                let weightedSfocSum = 0;
+
+                const onlineEngines = config.engineData.filter(e => e.online);
+                const otherConsumers = [
+                    ...(config.emergencyGen.enabled ? [config.emergencyGen] : []),
+                    ...(config.boiler.enabled ? [config.boiler] : [])
+                ].filter(c => c.online);
+
+                onlineEngines.forEach(engine => {
+                    const generatedKw = engine.sizeKw * (engine.load / 100);
+                    totalLoadKw += generatedKw;
+                    const { flowIn, sfoc } = calculateFuelFlow(engine, engine.load, false);
+                    engineFuelRate += flowIn;
+                    weightedSfocSum += sfoc * generatedKw;
+                });
+
+                otherConsumers.forEach(consumer => {
+                    const { flowIn } = calculateFuelFlow(consumer, consumer.load, consumer.type === 'boiler');
+                    otherFuelRate += flowIn;
+                });
+
+                if (onlineEngines.length > 0) {
+                    totalCapacityKw = onlineEngines.reduce((sum, e) => sum + e.sizeKw, 0);
+                }
+                const totalLoadPercent = totalCapacityKw > 0 ? (totalLoadKw / totalCapacityKw) * 100 : 0;
+                const totalFuelRate = engineFuelRate + otherFuelRate;
+                
+                document.getElementById('kpi-fuel-rate').textContent = totalFuelRate.toLocaleString('en-US', {maximumFractionDigits: 0});
+                document.getElementById('fuel-breakdown-engines').textContent = `Power Production: ${engineFuelRate.toFixed(1)} kg/h`;
+                document.getElementById('fuel-breakdown-other').textContent = `Other Consumers: ${otherFuelRate.toFixed(1)} kg/h`;
+
+                document.getElementById('kpi-vessel-load-kw').innerHTML = `${totalLoadKw.toLocaleString('en-US', {maximumFractionDigits: 0})} <span class="text-lg font-medium text-secondary align-middle">kW</span>`;
+                document.getElementById('kpi-vessel-load-pct').textContent = `(${totalLoadPercent.toFixed(0)}%)`;
+                
+                const performanceValue = updatePerformanceKpi(totalFuelRate, totalLoadPercent, weightedSfocSum, totalLoadKw);
+                if (activeTier === 'Compliance') {
+                    updateEmissionsWidget(totalFuelRate);
+                }
+
+                lastCalculatedTotals = {
+                    totalFuelRate,
+                    vesselLoadPct: totalLoadPercent,
+                    performance: performanceValue
+                };
+
+                const { avgLoad, avgFuel } = calculate24hAverages();
+                document.getElementById('avg-fuel-rate').textContent = avgFuel.toFixed(0);
+                const avgLoadDisplay = document.getElementById('average-load-display').querySelector('span:first-child');
+                avgLoadDisplay.textContent = `${avgLoad.toFixed(0)}%`;
+                averageEngineLoadChart.data.datasets[0].data = [avgLoad, 100 - avgLoad];
+                averageEngineLoadChart.update();
+                updateOperationalStatus(totalLoadPercent);
+            }
+            function populateSettingsModal() { 
+                document.getElementById('toggle-simulation-enabled').checked = config.simulation.enabled;
+                document.getElementById('toggle-auto-distribute').checked = config.vessel.autoDistributeLoad;
+                document.getElementById('toggle-bunkering-flow-meter').checked = config.vessel.bunkeringFlowMeter.enabled;
+
+                document.getElementById('toggle-cargo-tank-enabled').checked = config.fuelCargo.enabled;
+                document.getElementById('cargo-tank-size').value = config.fuelCargo.sizeMt;
+                document.getElementById('cargo-tank-level').value = config.fuelCargo.initialLevelMt;
+
+                document.getElementById('setpoint-name-high').value = config.loadSetpoints.names.high; 
+                document.getElementById('setpoint-name-transit').value = config.loadSetpoints.names.transit; 
+                document.getElementById('setpoint-name-low').value = config.loadSetpoints.names.low; 
+                document.getElementById('setpoint-name-idle').value = config.loadSetpoints.names.idle; 
+                document.getElementById('setpoint-high').value = config.loadSetpoints.high; 
+                document.getElementById('setpoint-transit').value = config.loadSetpoints.transit; 
+                document.getElementById('setpoint-low').value = config.loadSetpoints.low; 
+                document.getElementById('setpoint-idle').value = config.loadSetpoints.low; 
+                
+                document.getElementById('learning-period').value = config.dataQuality.learningPeriodDays;
+                document.getElementById('deviation-threshold').value = config.dataQuality.significantDeviationThreshold;
+                document.getElementById('deviation-time').value = config.dataQuality.deviationDisplayTime;
+                document.getElementById('fuel-capacity').value = config.totalFuelCapacityMT;
+
+                document.getElementById('engine-count').value = config.mainEngines; 
+                updateEngineConfigInputs(); 
+                populateProfileSliders(); 
+                document.getElementById('toggle-emerg-gen-enabled').checked = config.emergencyGen.enabled; 
+                document.getElementById('emerg-gen-size').value = config.emergencyGen.sizeKw; 
+                document.getElementById('emerg-gen-load').value = config.emergencyGen.load; 
+                document.getElementById('emerg-gen-load').disabled = !config.emergencyGen.enabled; 
+                document.getElementById('toggle-boiler-enabled').checked = config.boiler.enabled; 
+                document.getElementById('boiler-size').value = config.boiler.sizeKw; 
+                document.getElementById('boiler-load').value = config.boiler.load; 
+                document.getElementById('boiler-load').disabled = !config.boiler.enabled; 
+            }
+            function updateEngineConfigInputs() {
+                const count = parseInt(document.getElementById('engine-count').value) || 0;
+                const container = document.getElementById('engine-configs-container');
+                container.innerHTML = ''; // Clear previous inputs
+                for (let i = 0; i < count; i++) {
+                    const engine = config.engineData[i] || { name: `Main Engine ${i+1}`, sizeKw: 1500, online: false, load: 0 };
+                    const div = document.createElement('div');
+                    div.className = 'grid grid-cols-6 gap-4 items-center border-t border-border-primary pt-4';
+                    div.innerHTML = `
+                        <label class="flex items-center cursor-pointer col-span-1">
+                            <div class="relative">
+                                <input type="checkbox" id="engine-online-${i+1}" data-engine-index="${i}" class="sr-only consumer-toggle" ${engine.online ? 'checked' : ''}>
+                                <div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div>
+                            </div>
+                            <div class="ml-3 text-headings font-medium">Engine ${i+1}</div>
+                        </label>
+                        <div class="col-span-1">
+                            <label for="engine-size-${i+1}" class="text-sm text-secondary block">Size (kW)</label>
+                            <input type="number" id="engine-size-${i+1}" value="${engine.sizeKw}" class="form-input w-full p-2 rounded-md">
+                        </div>
+                        <div class="col-span-2 flex items-center gap-2">
+                            <input type="range" id="engine-load-pct-${i+1}" data-engine-index="${i}" value="${engine.load}" min="0" max="100" class="w-full" ${!engine.online ? 'disabled' : ''}>
+                            <span id="engine-load-pct-display-${i+1}" class="w-12 text-right font-mono text-sm">${engine.load.toFixed(0)}%</span>
+                        </div>
+                        <div class="col-span-1">
+                            <label for="engine-load-kw-${i+1}" class="text-sm text-secondary block">Load (kW)</label>
+                            <input type="number" id="engine-load-kw-${i+1}" data-engine-index="${i}" value="${(engine.sizeKw * (engine.load/100)).toFixed(0)}" min="0" max="${engine.sizeKw}" class="form-input w-full p-2 rounded-md" ${!engine.online ? 'disabled' : ''}>
+                        </div>
+                        <div class="col-span-1">
+                             <button type="button" data-engine-index="${i}" class="edit-sfoc-btn w-full px-2 py-2 text-xs rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Edit SFOC</button>
+                        </div>`;
+                    container.appendChild(div);
+                }
+            }
+            function calculateFuelFlow(engine, loadPercent, isBoiler = false) { if (loadPercent <= 0) return { flowIn: 0, flowOut: 0, sfoc: 0 }; if (isBoiler) { const flowIn = (engine.sizeKw / 10) * (loadPercent / 100); return { flowIn, flowOut: 0, sfoc: null }; } const sfoc = interpolateSfoc(loadPercent, engine.sfocCurve); const powerOutputKw = engine.sizeKw * (loadPercent / 100); const fuelGramsPerHour = powerOutputKw * sfoc; const flowIn = fuelGramsPerHour / 1000; const flowOut = flowIn * 0.02; return { flowIn, flowOut, sfoc }; }
+            function handleSaveSettings(e) { 
+                e.preventDefault(); 
+                config.simulation.enabled = document.getElementById('toggle-simulation-enabled').checked;
+                config.vessel.autoDistributeLoad = document.getElementById('toggle-auto-distribute').checked;
+                config.vessel.bunkeringFlowMeter.enabled = document.getElementById('toggle-bunkering-flow-meter').checked;
+
+                config.fuelCargo.enabled = document.getElementById('toggle-cargo-tank-enabled').checked;
+                config.fuelCargo.sizeMt = parseFloat(document.getElementById('cargo-tank-size').value) || 0;
+                config.fuelCargo.initialLevelMt = parseFloat(document.getElementById('cargo-tank-level').value) || 0;
+                
+                // Initialize cargo data if it's enabled
+                if(config.fuelCargo.enabled) {
+                    cargoData.currentLevelMt = config.fuelCargo.initialLevelMt;
+                    cargoData.manualSoundingMt = config.fuelCargo.initialLevelMt;
+                }
+
+
+                Object.assign(config.loadSetpoints, { high: parseInt(document.getElementById('setpoint-high').value), transit: parseInt(document.getElementById('setpoint-transit').value), low: parseInt(document.getElementById('setpoint-low').value) }); 
+                Object.assign(config.loadSetpoints.names, { high: document.getElementById('setpoint-name-high').value, transit: document.getElementById('setpoint-name-transit').value, low: document.getElementById('setpoint-name-low').value, idle: document.getElementById('setpoint-name-idle').value }); 
+                
+                config.dataQuality.learningPeriodDays = parseInt(document.getElementById('learning-period').value) || 7;
+                config.dataQuality.significantDeviationThreshold = parseFloat(document.getElementById('deviation-threshold').value) || 3;
+                config.dataQuality.deviationDisplayTime = parseInt(document.getElementById('deviation-time').value) || 4;
+                config.totalFuelCapacityMT = parseFloat(document.getElementById('fuel-capacity').value) || 1000;
+
+                Object.assign(config.loadSetpoints.profile24h, { high: parseInt(document.getElementById('profile-slider-high').value), transit: parseInt(document.getElementById('profile-slider-transit').value), low: parseInt(document.getElementById('profile-slider-low').value), idle: parseInt(document.getElementById('profile-slider-idle').value) }); engineLoadDistributionChart.data.datasets[0].data = Object.values(config.loadSetpoints.profile24h); engineLoadDistributionChart.update(); const newCount = parseInt(document.getElementById('engine-count').value); config.mainEngines = newCount; let newEngineData = []; for(let i = 0; i < newCount; i++) { const oldData = config.engineData[i] || { id: i + 1, type: 'engine', name: `Main Engine ${i + 1}`, sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve)) }; const isOnline = document.getElementById(`engine-online-${i+1}`).checked; newEngineData.push({ ...oldData, sizeKw: parseInt(document.getElementById(`engine-size-${i+1}`).value), online: isOnline, load: isOnline ? parseFloat(document.getElementById(`engine-load-pct-${i+1}`).value) : 0 }); } config.engineData = newEngineData; Object.assign(config.emergencyGen, { enabled: document.getElementById('toggle-emerg-gen-enabled').checked, online: document.getElementById('toggle-emerg-gen-enabled').checked && document.getElementById('emerg-gen-load').value > 0, sizeKw: parseInt(document.getElementById('emerg-gen-size').value), load: document.getElementById('toggle-emerg-gen-enabled').checked ? parseInt(document.getElementById('emerg-gen-load').value) : 0 }); Object.assign(config.boiler, { enabled: document.getElementById('toggle-boiler-enabled').checked, online: document.getElementById('toggle-boiler-enabled').checked && document.getElementById('boiler-load').value > 0, sizeKw: parseInt(document.getElementById('boiler-size').value), load: document.getElementById('toggle-boiler-enabled').checked ? parseInt(document.getElementById('boiler-load').value) : 0 }); targetVesselLoadKw = newEngineData.filter(c => c.online).reduce((sum, c) => sum + (c.sizeKw * (c.load / 100)), 0); dom.settingsModal.classList.add('hidden'); renderDashboard(); }
+            function adjustVesselLoad(kwChange) {
+                let remainingKwChange = kwChange;
+                let iteration = 0;
+
+                while (Math.abs(remainingKwChange) > 0.1 && iteration < 10) {
+                    const adjustableEngines = config.engineData.filter(e => {
+                        if (!e.online) return false;
+                        if (kwChange > 0) return e.load < 100;
+                        if (kwChange < 0) return e.load > 0;
+                        return false;
+                    });
+
+                    if (adjustableEngines.length === 0) break;
+
+                    const kwPerEngine = remainingKwChange / adjustableEngines.length;
+                    remainingKwChange = 0;
+
+                    adjustableEngines.forEach(engine => {
+                        const currentKw = engine.sizeKw * (engine.load / 100);
+                        let newKw = currentKw + kwPerEngine;
+
+                        if (newKw > engine.sizeKw) {
+                            remainingKwChange += newKw - engine.sizeKw;
+                            newKw = engine.sizeKw;
+                        } else if (newKw < 0) {
+                            remainingKwChange += newKw;
+                            newKw = 0;
+                        }
+                        engine.load = (newKw / engine.sizeKw) * 100;
+                    });
+                    iteration++;
+                }
+                
+                targetVesselLoadKw = config.engineData.filter(e => e.online).reduce((sum, e) => sum + (e.sizeKw * (e.load / 100)), 0);
+                renderDashboard();
+            }
+            
+            function handleEngineToggle(e) {
+                const isAutoDistribute = document.getElementById('toggle-auto-distribute').checked;
+                const engineRows = document.querySelectorAll('#engine-configs-container > div');
+
+                // First, just enable/disable the inputs for the toggled engine
+                const parentRow = e.target.closest('.grid');
+                const inputsToToggle = parentRow.querySelectorAll('input[type="range"], input[type="number"]');
+                inputsToToggle.forEach(input => input.disabled = !e.target.checked);
+
+                if (!isAutoDistribute) {
+                    return; // Exit if auto-distribution is off
+                }
+
+                // --- Auto-distribution logic ---
+                let totalLoadKw = 0;
+                engineRows.forEach((row) => {
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    // Check the state *before* this event fired. The clicked one is now inverted.
+                    const wasOnline = (checkbox === e.target) ? !checkbox.checked : checkbox.checked;
+                    if (wasOnline) {
+                        const kwInput = row.querySelector('input[id^="engine-load-kw-"]');
+                        totalLoadKw += parseFloat(kwInput.value) || 0;
+                    }
+                });
+
+                const onlineEnginesAfter = [];
+                engineRows.forEach((row, index) => {
+                    if (row.querySelector('input[type="checkbox"]').checked) {
+                        onlineEnginesAfter.push(index);
+                    }
+                });
+
+                if (onlineEnginesAfter.length > 0) {
+                    const newLoadPerEngineKw = totalLoadKw / onlineEnginesAfter.length;
+
+                    onlineEnginesAfter.forEach(index => {
+                        const row = engineRows[index];
+                        const sizeInput = row.querySelector('input[id^="engine-size-"]');
+                        const sizeKw = parseFloat(sizeInput.value);
+
+                        let newLoadPct = sizeKw > 0 ? (newLoadPerEngineKw / sizeKw) * 100 : 0;
+                        newLoadPct = Math.max(0, Math.min(100, newLoadPct)); // Clamp
+
+                        const pctSlider = row.querySelector('input[id^="engine-load-pct-"]');
+                        const kwInput = row.querySelector('input[id^="engine-load-kw-"]');
+                        const pctDisplay = row.querySelector('span[id^="engine-load-pct-display-"]');
+
+                        pctSlider.value = newLoadPct;
+                        kwInput.value = newLoadPerEngineKw.toFixed(0);
+                        pctDisplay.textContent = `${newLoadPct.toFixed(0)}%`;
+                    });
+                }
+                 // Set offline engines to 0
+                engineRows.forEach((row, index) => {
+                    if (!onlineEnginesAfter.includes(index)) {
+                        const pctSlider = row.querySelector('input[id^="engine-load-pct-"]');
+                        const kwInput = row.querySelector('input[id^="engine-load-kw-"]');
+                        const pctDisplay = row.querySelector('span[id^="engine-load-pct-display-"]');
+                        pctSlider.value = 0;
+                        kwInput.value = 0;
+                        pctDisplay.textContent = '0%';
+                    }
+                });
+            }
+
+            function calculate24hAverages() { const { profile24h, high, transit, low } = config.loadSetpoints; const avgLoad = (profile24h.high / 100 * (high + 100) / 2) + (profile24h.transit / 100 * (transit + high) / 2) + (profile24h.low / 100 * (low + transit) / 2) + (profile24h.idle / 100 * low / 2); const totalCapacity = config.engineData.reduce((sum, e) => sum + e.sizeKw, 0); const { flowIn: avgFuel } = calculateFuelFlow(config.engineData[0], avgLoad); return { avgLoad, avgFuel }; }
+            function populateProfileSliders() { const container = document.getElementById('profile-sliders-container'); container.innerHTML = ''; const { profile24h, names } = config.loadSetpoints; Object.keys(profile24h).forEach(key => { const div = document.createElement('div'); div.innerHTML = `<label for="profile-slider-${key}" class="text-sm text-secondary flex justify-between"><span>${names[key]}</span><span id="profile-value-${key}">${profile24h[key]}%</span></label><input type="range" id="profile-slider-${key}" data-profile="${key}" min="0" max="100" value="${profile24h[key]}" class="w-full profile-slider">`; container.appendChild(div); }); container.querySelectorAll('.profile-slider').forEach(slider => { slider.addEventListener('input', handleProfileSliderChange); }); }
+            function handleProfileSliderChange(e) { const sliders = Array.from(document.querySelectorAll('.profile-slider')); const changedSlider = e.target; let total = sliders.reduce((sum, s) => sum + parseInt(s.value), 0); if (total > 100) { let excess = total - 100; const otherSliders = sliders.filter(s => s !== changedSlider); while(excess > 0 && otherSliders.some(s => parseInt(s.value) > 0)) { let totalReducible = otherSliders.reduce((sum, s) => sum + parseInt(s.value), 0); if (totalReducible === 0) break; otherSliders.forEach(slider => { if (parseInt(slider.value) > 0) { const reduction = Math.min(parseInt(slider.value), Math.ceil(excess * (parseInt(slider.value) / totalReducible))); slider.value = parseInt(slider.value) - reduction; excess -= reduction; } }); } } sliders.forEach(slider => { document.getElementById(`profile-value-${slider.dataset.profile}`).textContent = `${slider.value}%`; }); }
+            
+            // --- CHART.JS CONFIGURATIONS & LIVE UPDATES ---
+            function getChartColors() {
+                const style = getComputedStyle(document.body);
+                return {
+                    textColor: style.getPropertyValue('--text-secondary').trim(),
+                    gridColor: style.getPropertyValue('--chart-grid').trim(),
+                    primaryColor: style.getPropertyValue('--text-primary').trim(),
+                    headingsColor: style.getPropertyValue('--text-headings').trim(),
+                    widgetBgColor: style.getPropertyValue('--bg-widget').trim(),
+                    borderPrimaryColor: style.getPropertyValue('--border-primary').trim()
+                };
+            }
+
+            function initializeCharts() {
+                const colors = getChartColors();
+                const commonOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: colors.widgetBgColor, padding: 12, cornerRadius: 8, titleColor: colors.headingsColor, bodyColor: colors.primaryColor } }};
+                const timeScaleOptions = { x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } }, grid: { display: false }, ticks: { color: colors.textColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } }, y: { grid: { color: colors.gridColor, drawBorder: false }, ticks: { color: colors.textColor } } };
+
+                fuelRateDataset = { label: 'Fuel Rate (kg/h)', data: [], borderColor: 'rgba(56, 189, 248, 1)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: { target: 'origin', above: 'rgba(56, 189, 248, 0.4)'}, yAxisID: 'y' };
+                vesselLoadDataset = { label: 'Vessel Load (%)', data: [], borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: { target: 'origin', above: 'rgba(245, 158, 11, 0.4)'}, yAxisID: 'y1' };
+                efficiencyDataset = { label: 'Efficiency (% of Peak)', data: [], borderColor: '#10b981', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false, yAxisID: 'y2' };
+                combinedTrendChart = new Chart(document.getElementById('combinedTrendChart').getContext('2d'), { type: 'line', data: { datasets: [fuelRateDataset, vesselLoadDataset, efficiencyDataset] }, options: { ...commonOptions, scales: { y: { type: 'linear', display: true, position: 'left', grid: { color: colors.gridColor, drawBorder: false }, ticks: { color: 'rgba(56, 189, 248, 1)' } }, y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#f59e0b' } }, y2: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#10b981' } }, x: timeScaleOptions.x } } });
+                
+                engineLoadDistributionChart = new Chart(document.getElementById('engineLoadDistributionChart').getContext('2d'), { type: 'doughnut', data: { labels: [ 'High Load', 'Transit Load', 'Low Load', 'Idle' ], datasets: [{ data: [5, 65, 25, 5], backgroundColor: [ '#67e8f9', '#0891b2', '#0e7490', '#a5f3fc' ], borderColor: colors.widgetBgColor, borderWidth: 2, hoverOffset: 8 }] }, options: { ...commonOptions, cutout: '70%', plugins: { ...commonOptions.plugins, tooltip: { callbacks: { label: context => `${context.label}: ${context.raw}%` } } } } });
+                averageEngineLoadChart = new Chart(document.getElementById('averageEngineLoadChart').getContext('2d'), { type: 'doughnut', data: { datasets: [{ data: [0, 100], backgroundColor: [ 'rgba(56, 189, 248, 1)', colors.borderPrimaryColor ], borderColor: colors.widgetBgColor, borderWidth: 2, hoverOffset: 4 }] }, options: { ...commonOptions, cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+
+                const bunkerLogOptions = { ...commonOptions, scales: { ...timeScaleOptions, x: { ...timeScaleOptions.x, time: { unit: 'day' } } } };
+                bunkerLogChart = new Chart(document.getElementById('bunkerLogChart').getContext('2d'), { type: 'bar', data: { datasets: [{ label: 'Bunker Mass (MT)', data: [], backgroundColor: 'rgba(56, 189, 248, 0.7)' }] }, options: bunkerLogOptions });
+                
+                tankLogChart = new Chart(document.getElementById('tankLogChart').getContext('2d'), { type: 'line', data: { datasets: [ { label: 'Calculated ROB (MT)', data: [], borderColor: 'rgba(255, 255, 255, 0.5)', borderWidth: 2, pointRadius: 0, tension: 0.1, borderDash: [5, 5] }, { label: 'Manual Sounding (MT)', data: [], borderColor: '#f59e0b', backgroundColor: '#f59e0b', pointRadius: 5, showLine: false }, { label: 'Bunker Event (MT)', data: [], borderColor: '#67e8f9', backgroundColor: '#67e8f9', pointRadius: 7, pointStyle: 'rectRot', showLine: false } ]}, options: { ...commonOptions, scales: timeScaleOptions, plugins: { ...commonOptions.plugins, legend: { display: true, labels: { color: colors.primaryColor } } } } });
+                
+                emissionsBreakdownChart = new Chart(document.getElementById('emissionsBreakdownChart').getContext('2d'), { type: 'bar', data: { labels: ['CO₂', 'NOx', 'SOx'], datasets: [{ label: 'Emissions (kg/h)', data: [0, 0, 0], backgroundColor: ['#67e8f9', '#f59e0b', '#ef4444'], borderWidth: 0 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { ...commonOptions.plugins }, scales: { x: { beginAtZero: true, grid: { color: colors.gridColor }, ticks: { color: colors.textColor, font: { size: 10 } } }, y: { grid: { display: false }, ticks: { color: colors.primaryColor } } } } });
+
+                initializeTrendData();
+                if(trendUpdateInterval) clearInterval(trendUpdateInterval);
+                trendUpdateInterval = setInterval(updateLiveTrends, 5000);
+                updateTrendToggleButtons();
+            }
+
+            function initializeTrendData() { const now = Date.now(); const dataPoints = 30; let lastFuel = 1500; let lastLoad = 70; const fuelData = []; const loadData = []; const effData = []; for (let i = dataPoints; i > 0; i--) { const timestamp = now - i * 5000; lastFuel += (Math.random() - 0.5) * 50; lastLoad += (Math.random() - 0.5) * 5; lastFuel = Math.max(1000, Math.min(2000, lastFuel)); lastLoad = Math.max(40, Math.min(90, lastLoad)); fuelData.push({x: timestamp, y: lastFuel}); loadData.push({x: timestamp, y: lastLoad}); effData.push({x: timestamp, y: 95 + (Math.random() - 0.5) * 5}); } combinedTrendChart.data.datasets[0].data = fuelData; combinedTrendChart.data.datasets[1].data = loadData; combinedTrendChart.data.datasets[2].data = effData; combinedTrendChart.update(); }
+            function updateLiveTrends() {
+                const now = Date.now();
+                combinedTrendChart.data.datasets[0].data.push({x: now, y: lastCalculatedTotals.totalFuelRate});
+                combinedTrendChart.data.datasets[1].data.push({x: now, y: lastCalculatedTotals.vesselLoadPct});
+                combinedTrendChart.data.datasets[2].data.push({x: now, y: lastCalculatedTotals.performance});
+
+                if (combinedTrendChart.data.datasets[0].data.length > 30) {
+                    combinedTrendChart.data.datasets.forEach(dataset => { dataset.data.shift(); });
+                }
+                combinedTrendChart.update('quiet');
+            }
+            function updateTrendToggleButtons() {
+                // CSS now handles all styling based on the .active class
+                const fuelActive = document.querySelector('[data-trend="fuel"]').classList.contains('active');
+                const loadActive = document.querySelector('[data-trend="load"]').classList.contains('active');
+                const effActive = document.querySelector('[data-trend="efficiency"]').classList.contains('active');
+                
+                combinedTrendChart.data.datasets[0].hidden = !fuelActive;
+                combinedTrendChart.data.datasets[1].hidden = !loadActive;
+                combinedTrendChart.data.datasets[2].hidden = !effActive;
+                
+                combinedTrendChart.options.scales.y.display = fuelActive;
+                combinedTrendChart.options.scales.y1.display = loadActive;
+                combinedTrendChart.options.scales.y2.display = effActive;
+                
+                handleLinkScalesToggle();
+            }
+            function handleTrendToggle(e) { if (!e.target.classList.contains('trend-toggle')) return; e.target.classList.toggle('active'); updateTrendToggleButtons(); }
+            function handleLinkScalesToggle() {
+                const isLinked = dom.linkScalesToggle.checked;
+                if (isLinked) {
+                    const maxFuel = Math.max(...(combinedTrendChart.data.datasets[0].data.map(d => d.y) || [0]));
+                    const maxLoad = Math.max(...(combinedTrendChart.data.datasets[1].data.map(d => d.y) || [0]));
+                    combinedTrendChart.options.scales.y.max  = maxFuel * 1.1;
+                    combinedTrendChart.options.scales.y1.max = maxLoad * 1.1;
+                    combinedTrendChart.options.scales.y.min = 0;
+                    combinedTrendChart.options.scales.y1.min = 0;
+                } else {
+                    combinedTrendChart.options.scales.y.max = undefined;
+                    combinedTrendChart.options.scales.y1.max = undefined;
+                    combinedTrendChart.options.scales.y.min = undefined;
+                    combinedTrendChart.options.scales.y1.min = undefined;
+                }
+                combinedTrendChart.update();
+            }
+
+            // --- INFO & SFOC MODAL LOGIC ---
+            function handleInfoClick(icon) {
+                const infoId = icon.dataset.infoId;
+                let content = {};
+                
+                if (infoId === 'performance-baseline') {
+                    let baseContent = `<p>This widget shows two different performance metrics, which can be changed using the arrows on the main screen.</p>
+                        <div class="info-box mt-4 p-3 rounded-md text-sm">
+                            <h4 class="font-bold text-cyan-400">Load Efficiency</h4>
+                            <p>Shows how efficiently the powerplant is running compared to its theoretical best performance. The reference is derived from the best SFOC point on the actual performance curves of the online machinery.</p>
+                            <p id="info-ref-details" class="mt-2 text-xs"></p>
+                        </div>
+                        <div class="info-box mt-4 p-3 rounded-md text-sm">
+                            <h4 class="font-bold text-cyan-400">Performance vs. Baseline</h4>
+                            <p>Shows how your current total fuel consumption compares to the saved baseline for the vessel's current operational mode. A positive green value means you are performing better than the baseline.</p>
+                        </div>`;
+
+                    const isBaselineReady = config.dataQuality.baselinesSet;
+                    if (!isBaselineReady) {
+                        const timeElapsed = Date.now() - config.dataQuality.systemStartDate;
+                        const totalLearningTime = config.dataQuality.learningPeriodDays * 24 * 60 * 60 * 1000;
+                        const timeRemaining = totalLearningTime - timeElapsed;
+                        let remainingStr = "Learning period complete. Please set a baseline in Settings.";
+                        if (timeRemaining > 0) {
+                            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            remainingStr = `The baseline view is disabled until the initial learning period is complete. <br><b>Time Remaining: ${days} days, ${hours} hours.</b>`;
+                        }
+                         baseContent += `<div class="warning-box mt-4 p-3 rounded-md text-sm">${remainingStr}</div>`;
+                    }
+                     content = { title: 'Performance KPI Explained', content: baseContent };
+                } else {
+                    const infoContent = {
+                        'live-fuel': { title: 'Live Fuel Rate Calculation', content: activeTier === 'Compliance' ? '<p>This value is the sum of the measured fuel consumption from all online consumers, based on data from interfaced <b>flow meters</b>.</p><p>This provides the high degree of accuracy required for regulatory reporting and compliance.</p>' : '<p>This value is the sum of the <b>estimated</b> fuel consumption from all online consumers (engines, boilers, etc.).</p><p>The calculation for each consumer is based on its size (kW), current load (%), and a Specific Fuel Oil Consumption (SFOC) model that estimates efficiency at different load points.</p>' },
+                        'live-load': { title: 'Live Vessel Load Calculation', content: '<p>This value is the sum of the power (kW) currently being generated by all online main engines.</p><p>The percentage represents this total power output relative to the combined maximum power rating of all online main engines.</p>' },
+                        'load-simulation-explanation': { title: 'Vessel Load Simulation', content: '<p>These controls allow you to simulate changes in the vessel\'s total power demand.</p><p>Clicking <b>+</b> or <b>-</b> increases or decreases the required load by 100 kW, distributing the change across all online engines. This helps in observing how fuel consumption and efficiency respond to varying operational conditions.</p>' },
+                        'trend-view': { title: 'Trend View Calculation', content: '<p>This chart displays a rolling history of key performance indicators.</p><ul><li><b>Fuel Rate:</b> Shows the total consumption of *all* online consumers.</li><li><b>Vessel Load:</b> Shows the total power output from main engines.</li><li><b>Efficiency:</b> Shows the Load Efficiency of only the power-producing engines.</li></ul><p>New data points are added every 5 seconds.</p>' },
+                        'sfoc-explanation': { title: 'SFOC vs. Fuel Rate', content: '<p><b>SFOC (g/kWh)</b> is a measure of an engine\'s efficiency. It shows how many grams of fuel are needed to produce 1 kilowatt-hour of energy. A lower number is more efficient.</p><p><b>Fuel Rate (kg/h)</b> is the total consumption over time. It\'s calculated using the SFOC and the engine\'s current power output:</p><p class="info-box text-sm text-center p-2 rounded-md font-mono">kg/h = (Power Output in kW * SFOC in g/kWh) / 1000</p>' },
+                        'rob-explanation': { title: 'ROB Values Explained', content: '<ul><li class="mb-2"><b>Calculated ROB:</b> The system\'s theoretical estimate of fuel on board. It is calculated by subtracting the fuel consumed by engines (based on SFOC) from the last bunker. It does NOT account for any physical losses.</li><li class="mb-2"><b>Measured ROB (Sounding):</b> The physical measurement of fuel in the tanks, entered manually by the crew.</li></ul><p class="mt-4">The <b>Deviation</b> is the critical value, highlighting the difference between the theoretical calculation and the physical measurement.</p>' },
+                        'unaccounted-fuel-explanation': { title: 'Simulating Fuel Loss', content: '<p>This widget lets you simulate an unaccounted fuel loss, like a leak or siphoning.</p><ul><li class="mb-2"><b>Actual ROB (Simulated):</b> This value shows the "ground truth" of what is actually in the tanks. It subtracts both the calculated engine consumption AND the simulated unaccounted loss.</li></ul><p class="mt-4">The goal is to use the main ROB widget to spot a deviation between the *Calculated* and *Measured* values, which would indicate this hidden loss.</p>' },
+                        'operational-status-explanation': { title: 'Vessel Mode Intelligence', content: `<p class="mb-4">The operational modes displayed here are based on foundational vessel load data, providing a high-level overview of the vessel's energy state.</p><div class="info-box p-4 rounded-lg"><h3 class="font-bold text-cyan-400 mb-2">Unlock Deeper Insights with Advanced Mode Detection</h3><p class="text-sm text-gray-300">For true operational efficiency and granular performance analysis, a more advanced approach is required.</p><p class="text-sm text-gray-300 mt-2">Kongsberg Maritime's K-IMS Vessel Mode Intelligence application moves beyond simple load detection. By applying sophisticated, vessel-specific logic to real-time data from core systems like K-Pos (Dynamic Positioning) and K-Chief (Automation), it automatically classifies the vessel's precise operational state—from specific on-site jobs like 'Jacking' or 'Gangway Connected' to different types of 'Standby'.</p><p class="text-sm text-gray-300 mt-2">This provides the essential context needed for accurate benchmarking, enabling you to track the true cost and fuel consumption per operation, optimize performance, and make data-driven decisions that enhance both profitability and sustainability.</p></div>` },
+                        'link-scales-explanation': { title: 'Link Scales Explained', content: '<p>This feature synchronizes the Y-axes of the trends.</p><ul><li class="mb-2"><b>Unlinked (Default):</b> Each trend auto-scales its axis to best fit its own data, making it easy to see the shape and volatility of each line individually.</li><li class="mb-2"><b>Linked:</b> The Fuel Rate and Vessel Load axes are both set to start at zero. This provides a common baseline, making it easier to visually compare the magnitude of change between them.</li></ul>' },
+                        'emissions-explanation': { title: 'Emissions Estimation', content: '<p>This widget provides an estimation of greenhouse gas (GHG) and pollutant emissions based on total fuel consumption.</p><p>The calculation uses standard emission factors for Very Low Sulphur Fuel Oil (VLSFO):</p><ul class="list-disc list-inside mt-2"><li><b>CO₂ (Carbon Dioxide):</b> The primary GHG, directly related to the amount of carbon in the fuel.</li><li><b>NOx (Nitrogen Oxides):</b> Formed during high-temperature combustion. The factor used is an average for a Tier II compliant engine.</li><li><b>SOx (Sulphur Oxides):</b> Directly related to the sulphur content of the fuel (assumed 0.5% for VLSFO).</li></ul><p class="mt-2 text-xs text-gray-400">Note: These are estimates. Precise measurement requires dedicated exhaust gas monitoring systems.</p>' }
+                    };
+                    content = infoContent[infoId];
+                }
+                
+                if (!content) return;
+                document.getElementById('info-modal-title').textContent = content.title;
+                document.getElementById('info-modal-content').innerHTML = content.content;
+                
+                // Dynamically update the reference details if it's the performance modal
+                if (infoId === 'performance-baseline') {
+                    const { refSfoc, engineName: refEngine, atLoadPct: refAt } = getReferenceSfocFromOnlineEngines();
+                    const refLabel = isFinite(refAt) ? `${refSfoc.toFixed(0)} g/kWh @ ${refAt.toFixed(0)}% (${refEngine})` : `${refSfoc.toFixed(0)} g/kWh`;
+                    document.getElementById('info-ref-details').textContent = `Current Reference: ${refLabel}`;
+                }
+
+                dom.infoModal.classList.remove('hidden');
+            }
+
+            function interpolateSfoc(load, curveData) {
+                for (let i = 0; i < curveData.length - 1; i++) {
+                    const p1 = curveData[i];
+                    const p2 = curveData[i+1];
+                    if (load >= p1.x && load <= p2.x) {
+                        return p1.y + (load - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
+                    }
+                }
+                if (load < curveData[0].x) return curveData[0].y;
+                return curveData[curveData.length - 1].y;
+            }
+
+            function handleEngineClick(e) {
+                const engineBlock = e.target.closest('.engine-block.online');
+                if (!engineBlock) return;
+                const consumerId = parseInt(engineBlock.dataset.id);
+                const consumerType = engineBlock.dataset.type;
+
+                const allConsumers = [...config.engineData, config.emergencyGen, config.boiler];
+                const consumer = allConsumers.find(c => c.id === consumerId);
+                if (!consumer) return;
+
+                if (consumerType === 'engine' || consumerType === 'emergency') {
+                    if (sfocChart) sfocChart.destroy();
+                    
+                    const { flowIn, sfoc } = calculateFuelFlow(consumer, consumer.load);
+                    const colors = getChartColors();
+                    
+                    sfocChart = new Chart(document.getElementById('sfocChartCanvas').getContext('2d'), { 
+                        type: 'line', 
+                        data: {
+                            datasets: [
+                                { label: 'SFOC Curve (g/kWh)', data: consumer.sfocCurve, borderColor: 'rgba(56, 189, 248, 1)', tension: 0.4, fill: false },
+                                { label: 'Current Operation', data: [{x: consumer.load, y: sfoc}], backgroundColor: '#f59e0b', pointRadius: 8, pointHoverRadius: 10 }
+                            ]
+                        },
+                        options: { 
+                            responsive: true, 
+                            maintainAspectRatio: false, 
+                            plugins: { 
+                                legend: { display: true, labels: {color: colors.primaryColor} }, 
+                                tooltip: { 
+                                    mode: 'index', 
+                                    intersect: false, 
+                                    backgroundColor: colors.widgetBgColor, 
+                                    titleColor: colors.headingsColor,
+                                    bodyColor: colors.primaryColor,
+                                    padding: 12, 
+                                    cornerRadius: 8, 
+                                    callbacks: { 
+                                        label: (context) => { 
+                                            if (context.datasetIndex === 1) return `Consumption: ${flowIn.toFixed(1)} kg/h`; 
+                                            return `SFOC: ${context.parsed.y.toFixed(1)} g/kWh`; 
+                                        } 
+                                    } 
+                                } 
+                            }, 
+                            scales: { 
+                                x: { 
+                                    type: 'linear', 
+                                    title: { display: true, text: 'Engine Load (%)', color: colors.textColor }, 
+                                    grid: { color: colors.gridColor }, 
+                                    ticks: { color: colors.textColor } 
+                                }, 
+                                y: { 
+                                    title: { display: true, text: 'SFOC (g/kWh)', color: colors.textColor }, 
+                                    grid: { color: colors.gridColor }, 
+                                    ticks: { color: colors.textColor } 
+                                } 
+                            } 
+                        }
+                    });
+                    
+                    document.getElementById('sfoc-modal-title').textContent = `${consumer.name} - SFOC Curve`;
+                    dom.sfocModal.classList.remove('hidden');
+                } else if (consumerType === 'boiler') {
+                    document.getElementById('info-modal-title').textContent = `${consumer.name} - KPI`;
+                    document.getElementById('info-modal-content').innerHTML = `<p>Boilers are typically measured by their thermal efficiency rather than an SFOC curve.</p><p class="text-2xl mt-4 text-center">Simulated Thermal Efficiency: <span class="font-bold text-cyan-400">${consumer.thermalEfficiency}%</span></p>`;
+                    dom.infoModal.classList.remove('hidden');
+                }
+            }
+            
+            // --- BASELINE & PERFORMANCE LOGIC ---
+            function switchPerformanceKpiMode() {
+                if (performanceKpiMode === 'efficiency') {
+                    if (config.dataQuality.baselinesSet) {
+                        performanceKpiMode = 'baseline';
+                    }
+                } else {
+                    performanceKpiMode = 'efficiency';
+                }
+                renderDashboard();
+            }
+
+            function getCurveMinSfoc(curve) {
+                if (!curve || curve.length === 0) return { sfoc: NaN, atLoad: NaN };
+                let min = curve[0];
+                for (let i = 1; i < curve.length; i++) {
+                    if (curve[i].y < min.y) min = curve[i];
+                }
+                return { sfoc: min.y, atLoad: min.x };
+            }
+
+            function getReferenceSfocFromOnlineEngines() {
+                const onlineEngines = config.engineData.filter(e => e.online);
+                if (onlineEngines.length === 0) return { refSfoc: 200, engineName: 'N/A', atLoadPct: NaN };
+
+                let best = { refSfoc: Infinity, engineName: null, atLoadPct: NaN };
+                for (const eng of onlineEngines) {
+                    const { sfoc, atLoad } = getCurveMinSfoc(eng.sfocCurve);
+                    if (sfoc < best.refSfoc) best = { refSfoc: sfoc, engineName: eng.name, atLoadPct: atLoad };
+                }
+                // Safety cap to avoid showing >100% efficiency due to noisy curves or rounding
+                if (!isFinite(best.refSfoc) || best.refSfoc <= 0) best.refSfoc = 200;
+                return best;
+            }
+
+            function handleCalculateBaseline() {
+                // In a real system, this would query historical data.
+                // Here, we simulate by creating baselines from the 24h profile.
+                const { profile24h, high, transit, low, names } = config.loadSetpoints;
+                const totalCapacity = config.engineData.reduce((sum, e) => sum + e.sizeKw, 0);
+
+                const baselineHighLoad = (high + 100) / 2;
+                const baselineTransitLoad = (transit + high) / 2;
+                const baselineLowLoad = (low + transit) / 2;
+                const baselineIdleLoad = low / 2;
+
+                config.baselines.high = calculateFuelFlow(config.engineData[0], baselineHighLoad).flowIn;
+                config.baselines.transit = calculateFuelFlow(config.engineData[0], baselineTransitLoad).flowIn;
+                config.baselines.low = calculateFuelFlow(config.engineData[0], baselineLowLoad).flowIn;
+                config.baselines.idle = calculateFuelFlow(config.engineData[0], baselineIdleLoad).flowIn;
+                
+                config.dataQuality.baselinesSet = true;
+                
+                // Close settings and re-render to show updated state
+                dom.settingsModal.classList.add('hidden');
+                renderDashboard();
+                
+                // Show a confirmation message
+                document.getElementById('info-modal-title').textContent = 'Baselines Set';
+                document.getElementById('info-modal-content').innerHTML = `<p>New performance baselines have been calculated and set based on the selected period.</p><p>You can now use the arrows on the main dashboard to switch to the baseline view.</p>`;
+                dom.infoModal.classList.remove('hidden');
+            }
+
+            function updatePerformanceKpi(totalFuelRate, totalLoadPercent, weightedSfocSum, totalLoadKw) {
+                const titleEl = document.getElementById('performance-kpi-title');
+                const efficiencyEl = document.getElementById('kpi-efficiency');
+                const subtitleEl = document.getElementById('kpi-performance-subtitle');
+                
+                dom.optimizeButton.classList.add('hidden');
+                dom.perfKpiNext.disabled = !config.dataQuality.baselinesSet;
+                dom.perfKpiPrev.disabled = !config.dataQuality.baselinesSet;
+
+
+                let performanceValue;
+
+                if (performanceKpiMode === 'baseline' && config.dataQuality.baselinesSet) {
+                    titleEl.textContent = 'Performance vs. Baseline';
+                    const currentMode = getOperationalMode(totalLoadPercent);
+                    const baseline = config.baselines[currentMode];
+                    
+                    efficiencyEl.classList.remove('text-green-400', 'text-red-400', 'text-gray-400', 'text-yellow-400');
+
+                    if (baseline > 0) {
+                        const deviation = ((baseline - totalFuelRate) / baseline) * 100;
+                        performanceValue = deviation;
+                        efficiencyEl.textContent = `${deviation >= 0 ? '+' : ''}${deviation.toFixed(1)}%`;
+                        subtitleEl.textContent = `vs. Baseline (${config.loadSetpoints.names[currentMode]})`;
+                        if (deviation > 0) {
+                            efficiencyEl.classList.add('text-green-400');
+                        } else {
+                            efficiencyEl.classList.add('text-red-400');
+                        }
+                    } else {
+                        performanceValue = 0;
+                        efficiencyEl.textContent = 'N/A';
+                        efficiencyEl.classList.add('text-gray-400');
+                        subtitleEl.textContent = 'No Baseline for this mode';
+                    }
+                } else {
+                    // Default to efficiency mode
+                    performanceKpiMode = 'efficiency';
+                    dom.optimizeButton.classList.remove('hidden');
+                    
+                    titleEl.textContent = 'Load Efficiency';
+                    subtitleEl.textContent = 'vs. Thermodynamic Optimum';
+                    if (totalLoadKw <= 0) {
+                      efficiencyEl.textContent = 'N/A';
+                      efficiencyEl.classList.add('text-gray-400');
+                      return 0;
+                    }
+                    const currentAverageSfoc = weightedSfocSum / totalLoadKw;
+                    const { refSfoc } = getReferenceSfocFromOnlineEngines();
+                    let efficiencyPct = currentAverageSfoc > 0 ? (refSfoc / currentAverageSfoc) * 100 : 0;
+                    efficiencyPct = Math.min(100, Math.max(0, efficiencyPct));
+                    performanceValue = efficiencyPct;
+
+                    efficiencyEl.textContent = `${efficiencyPct.toFixed(1)}%`;
+                    efficiencyEl.classList.remove('text-green-400','text-yellow-400','text-red-400', 'text-gray-400');
+                    dom.optimizeButton.classList.remove('bg-green-600','hover:bg-green-500','bg-green-800','hover:bg-green-700','bg-gray-600','hover:bg-gray-500');
+                    
+                    if (efficiencyPct >= 95) {
+                        efficiencyEl.classList.add('text-green-400');
+                        dom.optimizeButton.classList.add('bg-gray-600','hover:bg-gray-500');
+                    } else if (efficiencyPct >= 90) {
+                        efficiencyEl.classList.add('text-yellow-400');
+                        dom.optimizeButton.classList.add('bg-green-800','hover:bg-green-700');
+                    } else {
+                        efficiencyEl.classList.add('text-red-400');
+                        dom.optimizeButton.classList.add('bg-green-600','hover:bg-green-500');
+                    }
+                }
+                return performanceValue;
+            }
+
+            function updateEmissionsWidget(totalFuelRate) {
+                const co2Rate = totalFuelRate * config.emissions.co2.factor;
+                const soxRate = totalFuelRate * config.emissions.sox.factor;
+                const noxRate = totalFuelRate * config.emissions.nox.factor;
+
+                document.getElementById('co2-rate').textContent = co2Rate.toFixed(1);
+
+                if (emissionsBreakdownChart) {
+                    emissionsBreakdownChart.data.datasets[0].data = [co2Rate, noxRate, soxRate];
+                    emissionsBreakdownChart.update('quiet');
+                }
+            }
+            
+            function updateFuelLevelKpi() {
+                const fuelPct = (config.totalFuelCapacityMT > 0) ? (accountabilityData.calculatedRobMT / config.totalFuelCapacityMT) * 100 : 0;
+                document.getElementById('fuel-level-pct').textContent = `${fuelPct.toFixed(1)}%`;
+                document.getElementById('fuel-level-bar').style.width = `${Math.max(0, Math.min(100, fuelPct))}%`;
+                document.getElementById('fuel-level-mt').textContent = `${accountabilityData.calculatedRobMT.toFixed(2)} / ${config.totalFuelCapacityMT} MT`;
+            }
+
+            // --- VESSEL PRESETS ---
+            function populatePresets() {
+                Object.keys(vesselPresets).forEach(key => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.dataset.preset = key;
+                    button.className = 'preset-btn px-3 py-1 text-sm rounded-md transition-colors flex items-center gap-2';
+                    button.innerHTML = `
+                        <span>${key}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preset-wrench text-gray-500 pointer-events-none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                    `;
+                    dom.vesselPresetsContainer.appendChild(button);
+                });
+            }
+
+            function clearActivePreset() {
+                dom.vesselPresetsContainer.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+            }
+
+            function applyVesselPreset(presetKey) {
+                const preset = vesselPresets[presetKey];
+                if (!preset) return;
+
+                // Update config object
+                config.totalFuelCapacityMT = preset.fuelCap;
+                config.mainEngines = preset.engines;
+                config.boiler.enabled = preset.boiler;
+                
+                let newEngineData = [];
+                for (let i = 0; i < preset.engines; i++) {
+                    newEngineData.push({
+                        id: i + 1,
+                        type: 'engine',
+                        name: `Main Engine ${i + 1}`,
+                        sizeKw: preset.engineData[i].size,
+                        load: 70, // Default load
+                        online: true,
+                        sfocCurve: JSON.parse(JSON.stringify(defaultSfocCurve))
+                    });
+                }
+                config.engineData = newEngineData;
+
+                // Update accountability data to a realistic starting point
+                const startingFuel = preset.fuelCap * 0.85; // Start at 85%
+                accountabilityData.calculatedRobMT = startingFuel;
+                accountabilityData.manualSoundingMT = startingFuel;
+                accountabilityData.simulatedActualRobMT = startingFuel;
+                accountabilityData.fuelConsumedSinceSoundingMT = 0;
+
+
+                // Update the form fields
+                populateSettingsModal();
+                
+                // Highlight active button
+                dom.vesselPresetsContainer.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.preset === presetKey);
+                });
+            }
+            
+            // --- SFOC EDITOR LOGIC ---
+            function openSfocEditor(engineIndex) {
+                currentlyEditingEngineIndex = engineIndex;
+                const engine = config.engineData[engineIndex];
+                document.getElementById('sfoc-editor-title').textContent = `Edit SFOC Curve for ${engine.name}`;
+                
+                const form = document.getElementById('sfoc-editor-form');
+                form.innerHTML = '';
+                engine.sfocCurve.forEach((point, i) => {
+                    const pointDiv = document.createElement('div');
+                    pointDiv.className = 'grid grid-cols-3 gap-2 items-center';
+                    pointDiv.innerHTML = `
+                        <label class="text-sm text-secondary">Point ${i + 1}</label>
+                        <div class="col-span-1"><label class="text-xs text-secondary">Load (%)</label><input type="number" data-index="${i}" data-type="x" value="${point.x}" class="form-input w-full p-1 text-sm"></div>
+                        <div class="col-span-1"><label class="text-xs text-secondary">SFOC (g/kWh)</label><input type="number" data-index="${i}" data-type="y" value="${point.y}" class="form-input w-full p-1 text-sm"></div>
+                    `;
+                    form.appendChild(pointDiv);
+                });
+
+                updateSfocEditorChart();
+                dom.sfocEditorModal.classList.remove('hidden');
+            }
+
+            function updateSfocEditorChart() {
+                const form = document.getElementById('sfoc-editor-form');
+                const inputs = form.querySelectorAll('input');
+                const curveData = [...config.engineData[currentlyEditingEngineIndex].sfocCurve].map(p => ({...p}));
+
+                inputs.forEach(input => {
+                    const index = parseInt(input.dataset.index);
+                    const type = input.dataset.type;
+                    const value = parseFloat(input.value);
+                    if (!isNaN(value)) {
+                        curveData[index][type] = value;
+                    }
+                });
+                
+                const minY = Math.min(...curveData.map(p => p.y));
+                const colors = getChartColors();
+
+                if (sfocEditorChart) sfocEditorChart.destroy();
+                sfocEditorChart = new Chart(document.getElementById('sfocEditorChartCanvas').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            label: 'SFOC Curve (g/kWh)',
+                            data: curveData,
+                            borderColor: 'rgba(56, 189, 248, 1)',
+                            backgroundColor: 'rgba(56, 189, 248, 0.7)',
+                            tension: 0.4,
+                            fill: false,
+                            pointRadius: 5
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { display: false },
+                            dragData: {
+                                round: 0,
+                                dragX: true,
+                                onDrag: function(e, datasetIndex, index, value) {
+                                    // Constraint X value
+                                    const prevPointX = index > 0 ? sfocEditorChart.data.datasets[datasetIndex].data[index - 1].x : 0;
+                                    const nextPointX = index < sfocEditorChart.data.datasets[datasetIndex].data.length - 1 ? sfocEditorChart.data.datasets[datasetIndex].data[index + 1].x : 100;
+                                    value.x = Math.max(prevPointX, Math.min(value.x, nextPointX));
+                                    
+                                    // Update inputs in real-time
+                                    const form = document.getElementById('sfoc-editor-form');
+                                    form.querySelector(`input[data-index="${index}"][data-type="x"]`).value = value.x.toFixed(0);
+                                    form.querySelector(`input[data-index="${index}"][data-type="y"]`).value = value.y.toFixed(0);
+                                }
+                            }
+                        }, 
+                        scales: { 
+                            x: { type: 'linear', min: 0, max: 100, title: { display: true, text: 'Engine Load (%)', color: colors.textColor }, grid: { color: colors.gridColor }, ticks: { color: colors.textColor } }, 
+                            y: { title: { display: true, text: 'SFOC (g/kWh)', color: colors.textColor }, grid: { color: colors.gridColor }, ticks: { color: colors.textColor }, min: minY - 10 } 
+                        } 
+                    }
+                });
+            }
+
+            function handleSaveSfocCurve() {
+                const form = document.getElementById('sfoc-editor-form');
+                const inputs = form.querySelectorAll('input');
+                const newCurve = [...config.engineData[currentlyEditingEngineIndex].sfocCurve].map(p => ({...p}));
+
+                inputs.forEach(input => {
+                    const index = parseInt(input.dataset.index);
+                    const type = input.dataset.type;
+                    const value = parseFloat(input.value);
+                    if (!isNaN(value)) {
+                        newCurve[index][type] = value;
+                    }
+                });
+                config.engineData[currentlyEditingEngineIndex].sfocCurve = newCurve;
+                dom.sfocEditorModal.classList.add('hidden');
+            }
+
+            // --- THEME SWITCHER ---
+            function toggleTheme() {
+                dom.body.classList.toggle('light-theme');
+                const isLight = dom.body.classList.contains('light-theme');
+                dom.themeIconSun.classList.toggle('hidden', isLight);
+                dom.themeIconMoon.classList.toggle('hidden', !isLight);
+                updateAllChartThemes();
+            }
+
+            function updateAllChartThemes() {
+                const charts = [combinedTrendChart, engineLoadDistributionChart, averageEngineLoadChart, bunkerLogChart, tankLogChart, emissionsBreakdownChart, sfocChart, sfocEditorChart];
+                const colors = getChartColors();
+                
+                charts.forEach(chart => {
+                    if (chart) {
+                        // Update common colors
+                        if(chart.options.plugins.tooltip) {
+                            chart.options.plugins.tooltip.backgroundColor = colors.widgetBgColor;
+                            chart.options.plugins.tooltip.titleColor = colors.headingsColor;
+                            chart.options.plugins.tooltip.bodyColor = colors.primaryColor;
+                        }
+                        if(chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+                            chart.options.plugins.legend.labels.color = colors.primaryColor;
+                        }
+
+                        // Update scales
+                        Object.keys(chart.options.scales).forEach(axisKey => {
+                            const axis = chart.options.scales[axisKey];
+                            if (axis.ticks) axis.ticks.color = colors.textColor;
+                            if (axis.grid) axis.grid.color = colors.gridColor;
+                            if (axis.title) axis.title.color = colors.textColor;
+                        });
+
+                        // Update dataset-specific colors
+                        if (chart.config.type === 'doughnut') {
+                            chart.data.datasets.forEach(ds => {
+                                ds.borderColor = colors.widgetBgColor;
+                            });
+                        }
+                        if (chart === averageEngineLoadChart) {
+                            chart.data.datasets[0].backgroundColor[1] = colors.borderPrimaryColor;
+                        }
+                        
+                        chart.update();
+                    }
+                });
+            }
+
+        });
+    </script>
+
+</body>
+</html>
+
