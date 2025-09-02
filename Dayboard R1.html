@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Dayboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet.js for Mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- All design styles and variables are included here -->
+    <style>
+        /* CSS Variables for Theming */
+        :root {
+            --bg-primary: #111827;
+            --bg-widget: #1f2937;
+            --bg-header-btn-container: #1f2937;
+            --bg-header-btn: #111827;
+            --bg-info-box: #111827;
+            --text-primary: #d1d5db;
+            --text-secondary: #9ca3af;
+            --text-headings: #ffffff;
+            --border-primary: #374151;
+            --border-secondary: #4b5563;
+            --cyan-glow-color: rgba(56, 189, 248, 0.6);
+            --safety-yellow-bg: rgba(252, 211, 77, 0.1);
+            --safety-yellow-border: rgba(252, 211, 77, 0.4);
+            --safety-yellow-text: #fef08a;
+            --status-green: #22c55e;
+            --status-amber: #f59e0b;
+            --status-red: #ef4444;
+        }
+
+        body.light-theme {
+            --bg-primary: #f9fafb;
+            --bg-widget: #ffffff;
+            --bg-header-btn-container: #e5e7eb;
+            --bg-header-btn: #ffffff;
+            --bg-info-box: #f3f4f6;
+            --text-primary: #1f2937;
+            --text-secondary: #374151;
+            --text-headings: #111827;
+            --border-primary: #e5e7eb;
+            --border-secondary: #d1d5db;
+            --cyan-glow-color: rgba(14, 165, 233, 0.4);
+            --safety-yellow-bg: #fefce8;
+            --safety-yellow-border: #fde047;
+            --safety-yellow-text: #713f12;
+            --status-green: #16a34a;
+            --status-amber: #d97706;
+            --status-red: #dc2626;
+        }
+
+        /* Base styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .text-glow {
+            text-shadow: 0 0 8px var(--cyan-glow-color);
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-widget); }
+        ::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-secondary); }
+
+        /* Component Styles */
+        .widget {
+            background-color: var(--bg-widget);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-primary);
+            transition: background-color 0.3s, border-color 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .safety-moment {
+            background-color: var(--safety-yellow-bg);
+            border: 1px solid var(--safety-yellow-border);
+            color: var(--safety-yellow-text);
+        }
+
+        .modal-backdrop {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            background-color: var(--bg-widget);
+            border: 1px solid var(--border-primary);
+        }
+        
+        .form-input, .form-select {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+            border-radius: 0.375rem;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.5);
+        }
+         .form-select:disabled {
+            background-color: var(--border-primary);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .toggle-bg:after {
+            content: '';
+            position: absolute; top: 2px; left: 2px;
+            background-color: white;
+            border-radius: 9999px;
+            height: 1.25rem; width: 1.25rem;
+            transition: transform 0.2s ease-in-out;
+        }
+        input:checked + .toggle-bg { background-color: #0891b2; }
+        input:checked + .toggle-bg:after { transform: translateX(100%); }
+
+        /* Leaflet Map Styles */
+        .leaflet-container {
+            background-color: var(--bg-primary);
+        }
+        .leaflet-tile.dark-theme { filter: brightness(0.9) contrast(0.9); }
+        .leaflet-tile.light-theme { filter: brightness(1) contrast(1); }
+        .leaflet-control-scale-line {
+            background: rgba(0, 0, 0, 0.4);
+            border-color: #555;
+            color: #eee;
+        }
+        body.light-theme .leaflet-control-scale-line {
+            background: rgba(255, 255, 255, 0.5);
+            border-color: #999;
+            color: #222;
+        }
+        .ship-icon {
+            transition: transform 0.5s linear;
+        }
+        .weather-widget {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .weather-widget:hover {
+            background-color: var(--border-primary);
+        }
+        
+        /* Map Maximized State */
+        .map-maximized {
+            padding: 0 !important;
+            max-width: none !important;
+        }
+        .map-maximized header,
+        .map-maximized main > .widget:not(.maximized-widget) {
+            display: none !important;
+        }
+        .maximized-widget {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2000;
+            border-radius: 0;
+            padding: 1rem;
+        }
+        .maximized-widget .voyage-vitals-grid {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .maximized-widget .map-container {
+            flex-grow: 1;
+        }
+        .maximized-widget .vitals-panel {
+           flex-direction: row;
+           flex-wrap: wrap;
+           justify-content: space-around;
+           border-top: 1px solid var(--border-primary);
+           padding-top: 1rem;
+           margin-top: 1rem;
+        }
+        .maximized-widget .primary-vitals,
+        .maximized-widget .secondary-vitals {
+           display: contents; /* Makes children act as direct children of the flex container */
+        }
+        .status-dot {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+            flex-shrink: 0;
+        }
+        .leaflet-control-layers {
+            background: var(--bg-widget);
+            border: 1px solid var(--border-primary);
+        }
+        .leaflet-control-layers-base label, .leaflet-control-layers-overlays label {
+            color: var(--text-primary);
+        }
+        .leaflet-control-layers-separator {
+            border-top: 1px solid var(--border-primary);
+        }
+        .ship-div-icon {
+            background: none;
+            border: none;
+        }
+        .ship-svg {
+            transform-origin: center;
+            transition: transform 0.5s linear;
+        }
+    </style>
+</head>
+<body class="">
+
+    <div id="main-container" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <div>
+                 <h1 class="text-2xl sm:text-3xl font-bold text-headings tracking-wide">The Dayboard</h1>
+                 <p class="text-lg text-secondary -mt-1">Vessel Information Portal</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-left hidden sm:block w-28">
+                    <p id="ship-time" class="text-lg font-bold text-headings">00:00:00</p>
+                    <p class="text-xs text-secondary">Ship Time</p>
+                </div>
+                 <div class="text-left hidden sm:block w-28">
+                    <p id="utc-time" class="text-lg font-bold text-headings">00:00:00</p>
+                    <p class="text-xs text-secondary">UTC</p>
+                </div>
+                 <button id="theme-toggle-button" title="Toggle Theme" class="p-2 rounded-full text-secondary hover:text-cyan-400 hover:bg-border-primary transition-colors">
+                    <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                 </button>
+                 <button id="settings-button" title="Settings" class="p-2 rounded-full text-secondary hover:text-cyan-400 hover:bg-border-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                 </button>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- Voyage & Vitals -->
+            <div id="voyage-vitals-widget" class="widget lg:col-span-4">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold text-headings uppercase tracking-wider">Voyage & Vitals</h2>
+                    <button id="map-toggle-button" title="Maximize Map" class="p-2 rounded-full text-secondary hover:text-cyan-400 hover:bg-border-primary transition-colors">
+                        <svg id="icon-maximize" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 1v4m0 0h-4m4 0l-5-5" /></svg>
+                        <svg id="icon-minimize" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                </div>
+                <div class="voyage-vitals-grid grid grid-cols-1 md:grid-cols-5 gap-6 flex-grow">
+                    <div class="relative rounded-md overflow-hidden h-96 bg-border-primary flex items-center justify-center md:col-span-3 map-container">
+                        <div id="map" class="h-full w-full"></div>
+                        <div id="vessel-position" class="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded z-[1000]">--° --' N, ---° --' E</div>
+                    </div>
+                    <div class="md:col-span-2 space-y-4 flex flex-col justify-between vitals-panel">
+                        <div class="primary-vitals grid grid-cols-2 gap-4 text-center">
+                            <div>
+                                <p class="text-xs text-secondary uppercase">Heading</p>
+                                <p id="vessel-heading" class="text-5xl font-bold text-headings">--°</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-secondary uppercase">SOG</p>
+                                <p id="vessel-sog" class="text-5xl font-bold text-headings">-.- <span class="text-2xl">kts</span></p>
+                            </div>
+                        </div>
+                        <div class="secondary-vitals border-t border-border-primary pt-4 space-y-4">
+                             <div class="grid grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <p class="text-secondary uppercase text-sm">Status</p>
+                                    <p id="port-status" class="text-lg font-bold text-headings">--</p>
+                                    <p id="shore-leave-status" class="text-xs font-semibold mt-1">--</p>
+                                </div>
+                                <div>
+                                    <p class="text-secondary uppercase text-sm" id="vessel-mode-label">DP Mode</p>
+                                    <p id="dp-status" class="text-lg font-bold text-cyan-400">--</p>
+                                </div>
+                            </div>
+                            <div id="ecdis-widget" class="hidden border-t border-border-primary pt-4">
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <p class="text-xs text-secondary uppercase">Route</p>
+                                        <p id="ecdis-route" class="text-md font-bold text-headings">--</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-secondary uppercase">ETD</p>
+                                        <p id="ecdis-etd" class="text-md font-bold text-headings">--</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-secondary uppercase">ETA</p>
+                                        <p id="ecdis-eta" class="text-md font-bold text-headings">--</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <p class="text-xs text-secondary uppercase">Voyage Progress (Time)</p>
+                                        <p id="voyage-progress-text" class="text-xs text-secondary font-mono">0%</p>
+                                    </div>
+                                    <div class="w-full bg-border-secondary rounded-full h-2">
+                                        <div id="voyage-progress-bar" class="bg-cyan-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Daily Bulletin -->
+            <div class="widget lg:col-span-2">
+                <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">Daily Bulletin</h2>
+                <div class="safety-moment p-3 rounded-md mb-4">
+                    <h3 class="font-bold uppercase text-sm">Safety Moment</h3>
+                    <p id="safety-moment-text" class="text-sm mt-1">--</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                    <div>
+                        <h3 class="font-semibold text-cyan-400 mb-2">Today's Menu</h3>
+                        <div id="menu-widget" class="flex-grow flex flex-col justify-center space-y-4"></div>
+                    </div>
+                    <div class="border-t md:border-t-0 md:border-l border-border-primary pl-0 md:pl-6 pt-6 md:pt-0">
+                        <h3 class="font-semibold text-cyan-400 mb-2">Briefing</h3>
+                        <ul id="daily-briefing-list" class="space-y-2 list-disc list-inside text-primary flex-grow"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operations & Environmentals -->
+             <div class="widget lg:col-span-2">
+                <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4">Operations & Environmentals</h2>
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- KPIs Column -->
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="font-semibold text-cyan-400 mb-2">Performance</h3>
+                            <a href="METAFUEL_CORE.html" target="_blank" class="text-center block p-2 rounded-lg hover:bg-border-primary transition-colors">
+                                <p class="text-secondary text-sm">Load Efficiency (MetaFuel Core)</p>
+                                <p id="load-efficiency" class="text-4xl font-black text-green-400">--%</p>
+                                <p id="load-efficiency-ref" class="text-xs text-secondary">vs. --- g/kWh</p>
+                            </a>
+                            <div id="distance-container" class="cursor-pointer rounded-lg p-2 hover:bg-border-primary transition-colors mt-4 text-center">
+                                <p class="text-secondary text-xs">Distance YTD (nm)</p>
+                                <p id="distance-ytd" class="text-3xl font-bold text-headings">--</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-border-primary pt-4">
+                             <h3 class="font-semibold text-cyan-400 mb-2">Ops & Logistics</h3>
+                             <div class="grid grid-cols-2 gap-4 text-center">
+                                 <div>
+                                     <p class="text-secondary text-xs">Turbines Serviced (7d)</p>
+                                     <p id="turbines-serviced" class="text-3xl font-bold text-headings">--</p>
+                                 </div>
+                                 <div>
+                                     <p class="text-secondary text-xs">Crew Change (days)</p>
+                                     <p id="crew-change-countdown" class="text-3xl font-bold text-headings">--</p>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Environmentals Column -->
+                    <div class="border-t md:border-t-0 md:border-l border-border-primary pl-0 md:pl-6 pt-6 md:pt-0 flex flex-col justify-start" id="environment-widget-container">
+                         <h3 class="font-semibold text-cyan-400 mb-2 text-center">Live Sensor Data</h3>
+                         <div class="text-center flex-grow flex flex-col justify-center">
+                             <p class="text-secondary">Wind</p>
+                             <p id="wind-speed" class="text-5xl font-black text-headings">-- <span class="text-2xl font-medium">kts</span></p>
+                         </div>
+                         <div class="text-center border-t border-border-primary pt-4 mt-4">
+                            <h4 class="text-secondary text-sm mb-2">RMS Motion Summary (10m)</h4>
+                            <div id="motion-summary-container" class="space-y-2 text-left">
+                                <!-- JS Populated -->
+                            </div>
+                         </div>
+                    </div>
+                 </div>
+                 <!-- Forecast Section (Full Width) -->
+                 <div id="forecast-container" class="hidden border-t border-border-primary pt-4 mt-6">
+                     <h3 class="font-semibold text-cyan-400 mb-2 text-center">Forecast</h3>
+                     <div id="weather-forecast-widget" class="weather-widget rounded-lg p-3 space-y-3">
+                         <!-- JS Populated Forecast -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="settingsModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[2500]">
+        <div class="modal-content w-full max-w-2xl rounded-lg shadow-xl p-6 max-h-full overflow-y-auto">
+            <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold text-headings">The Dayboard Settings</h2><button id="close-settings-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <form id="settings-form" class="space-y-6">
+                 <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">Vessel Position</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="setting-lat" class="text-sm text-secondary block mb-1">Latitude (Decimal)</label>
+                            <input type="number" step="0.0001" id="setting-lat" class="form-input w-full p-2">
+                        </div>
+                        <div>
+                            <label for="setting-lon" class="text-sm text-secondary block mb-1">Longitude (Decimal)</label>
+                            <input type="number" step="0.0001" id="setting-lon" class="form-input w-full p-2">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="text-sm text-secondary block mb-2">Quick Select Location</label>
+                        <div id="quick-select-locations" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">Operational Scenario</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="setting-op-status" class="text-sm text-secondary block mb-1">Status</label>
+                            <select id="setting-op-status" class="form-select w-full p-2"></select>
+                        </div>
+                        <div>
+                            <label for="setting-dp-mode" id="setting-mode-label" class="text-sm text-secondary block mb-1">DP Mode</label>
+                            <select id="setting-dp-mode" class="form-select w-full p-2"></select>
+                        </div>
+                    </div>
+                     <div id="in-port-settings-panel" class="hidden mt-4 border-t border-border-primary pt-4">
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <span class="text-headings font-medium">Shore Leave Permitted</span>
+                            <div class="relative">
+                                <input type="checkbox" id="setting-shore-leave" class="sr-only peer">
+                                <div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div>
+                            </div>
+                        </label>
+                    </div>
+                     <div id="quick-select-routes-container" class="mt-4 hidden">
+                        <label class="text-sm text-secondary block mb-2">Quick Select Route</label>
+                        <div id="quick-select-routes" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+                <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">External Interfaces</h3>
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between cursor-pointer"><span class="text-headings font-medium">ECDIS Interface</span><div class="relative"><input type="checkbox" id="setting-ecdis-enabled" class="sr-only peer"><div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div></div></label>
+                        <div id="ecdis-settings-panel" class="hidden pl-6 border-l-2 border-border-primary ml-2 space-y-4">
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="setting-etd" class="text-sm text-secondary block mb-1">ETD (Local)</label>
+                                    <input type="datetime-local" id="setting-etd" class="form-input w-full p-2">
+                                </div>
+                                <div>
+                                    <label for="setting-eta" class="text-sm text-secondary block mb-1">ETA (Local)</label>
+                                    <input type="datetime-local" id="setting-eta" class="form-input w-full p-2">
+                                </div>
+                            </div>
+                        </div>
+                        <label class="flex items-center justify-between cursor-pointer"><span class="text-headings font-medium">Weather Forecast Interface</span><div class="relative"><input type="checkbox" id="setting-weather-enabled" class="sr-only peer"><div class="toggle-bg block bg-gray-600 w-12 h-7 rounded-full relative"></div></div></label>
+                    </div>
+                </div>
+                <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">Motion Limits</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
+                        <!-- Heave -->
+                        <div>
+                            <label class="text-sm text-secondary block mb-2 font-bold">Heave (m)</label>
+                            <div class="flex items-center gap-2">
+                                <label for="setting-heave-amber" class="text-sm">Amber</label>
+                                <input type="number" step="0.1" id="setting-heave-amber" class="form-input w-full p-1 text-sm">
+                            </div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <label for="setting-heave-red" class="text-sm">Red</label>
+                                <input type="number" step="0.1" id="setting-heave-red" class="form-input w-full p-1 text-sm">
+                            </div>
+                        </div>
+                        <!-- Pitch -->
+                        <div>
+                            <label class="text-sm text-secondary block mb-2 font-bold">Pitch (°)</label>
+                            <div class="flex items-center gap-2">
+                                <label for="setting-pitch-amber" class="text-sm">Amber</label>
+                                <input type="number" step="0.1" id="setting-pitch-amber" class="form-input w-full p-1 text-sm">
+                            </div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <label for="setting-pitch-red" class="text-sm">Red</label>
+                                <input type="number" step="0.1" id="setting-pitch-red" class="form-input w-full p-1 text-sm">
+                            </div>
+                        </div>
+                        <!-- Roll -->
+                        <div>
+                            <label class="text-sm text-secondary block mb-2 font-bold">Roll (°)</label>
+                            <div class="flex items-center gap-2">
+                                <label for="setting-roll-amber" class="text-sm">Amber</label>
+                                <input type="number" step="0.1" id="setting-roll-amber" class="form-input w-full p-1 text-sm">
+                            </div>
+                            <div class="flex items-center gap-2 mt-2">
+                                <label for="setting-roll-red" class="text-sm">Red</label>
+                                <input type="number" step="0.1" id="setting-roll-red" class="form-input w-full p-1 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border border-border-primary rounded-lg">
+                    <h3 class="font-semibold text-cyan-400 mb-4">Meal Schedule</h3>
+                    <div id="meal-schedule-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+                </div>
+                <div class="flex justify-end gap-4 mt-8"><button type="button" id="cancel-settings-button" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-4 py-2 rounded-md bg-cyan-600 text-white hover:bg-cyan-500 transition">Save Settings</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="weatherModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[2510]">
+        <div class="modal-content w-full max-w-lg rounded-lg shadow-xl p-6">
+            <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-headings">24-Hour Weather Forecast</h2><button id="close-weather-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button></div>
+            <div id="weather-modal-content" class="space-y-2">
+               <!-- JS Populated -->
+            </div>
+        </div>
+    </div>
+    <div id="distanceModal" class="modal-backdrop fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-[2510]">
+        <div class="modal-content w-full max-w-md rounded-lg shadow-xl p-6 text-center">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-headings">Distance Perspective</h2>
+                <button id="close-distance-button" class="text-secondary hover:text-headings text-3xl leading-none">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-lg">Your total distance of <strong id="modal-distance-nm" class="text-cyan-400"></strong> nautical miles is equivalent to...</p>
+                <div>
+                    <p id="modal-distance-moon" class="text-3xl font-bold text-headings">--</p>
+                    <p class="text-secondary text-sm">...trips to the Moon!</p>
+                </div>
+                 <div>
+                    <p id="modal-distance-earth" class="text-3xl font-bold text-headings">--</p>
+                    <p class="text-secondary text-sm">...times around the Earth's equator!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- STATE MANAGEMENT ---
+            let appState = {
+                settings: {
+                    operationalStatus: 'At Sea, Transit', dpMode: 'Auto Track',
+                    routeName: '',
+                    shoreLeavePermitted: true,
+                    ecdisEnabled: false, weatherEnabled: false,
+                    etd: '', eta: '',
+                    mealSchedule: { 'Breakfast': '08:00', 'Lunch': '12:00', 'Dinner': '18:00' },
+                    motionLimits: {
+                        heave: { amber: 0.8, red: 1.5 },
+                        pitch: { amber: 1.0, red: 2.0 },
+                        roll:  { amber: 1.5, red: 2.5 }
+                    }
+                },
+                liveData: { 
+                    latitude: 58.85, longitude: 2.3, heading: 225, distanceYtd: 42513,
+                    motionHistory: [] 
+                },
+                forecast: []
+            };
+            let map, shipMarker, darkTileLayer, lightTileLayer;
+
+            const mealConfig = { 'Early Bird': '06:30', 'Breakfast': '08:00', 'Coffee': '10:00', 'Lunch': '12:00', 'Afternoon': '15:00', 'Dinner': '18:00' };
+            const dpModes = ['Manual', 'Joystick', 'Auto Heading', 'Auto Position', 'DP', 'Follow Target', 'Auto Track'];
+            const vesselModes = ['Autopilot', 'Manual Steering', 'Standby'];
+            const operationalScenarios = [
+                { status: 'At Sea, Transit' },
+                { status: 'Field Operations' },
+                { status: 'Standby 500m' },
+                { status: 'Approaching Port' },
+                { status: 'In port' }
+            ];
+            const quickSelectLocations = {
+                'Hull': { lat: 53.74, lon: -0.32 },
+                'Mongstad': { lat: 60.81, lon: 5.03 },
+                'Ekofisk': { lat: 56.53, lon: 3.2 },
+                'Johan Sverdrup': { lat: 58.85, lon: 2.3 },
+                'Hornsea 1': { lat: 53.885, lon: 1.7911 },
+                'Hornsea 2': { lat: 53.91, lon: 1.5518 },
+                'Hollandse Kust': { lat: 52.7151, lon: 4.251 },
+                'Moray West': { lat: 58.0939, lon: -2.9881 }
+            };
+             const routePresets = {
+                'Hull to Hornsea 1': { start: 'Hull', end: 'Hornsea 1' },
+                'Mongstad to Ekofisk': { start: 'Mongstad', end: 'Ekofisk' }
+            };
+
+            // --- DOM ELEMENTS ---
+            const dom = {}; 
+
+            // --- INITIALIZATION ---
+            function init() {
+                loadState();
+                
+                const domElements = {
+                    body: document.body, mainContainer: document.getElementById('main-container'),
+                    voyageVitalsWidget: document.getElementById('voyage-vitals-widget'),
+                    mapToggleButton: document.getElementById('map-toggle-button'), iconMaximize: document.getElementById('icon-maximize'), iconMinimize: document.getElementById('icon-minimize'),
+                    themeToggleButton: document.getElementById('theme-toggle-button'), themeIconSun: document.getElementById('theme-icon-sun'),
+                    themeIconMoon: document.getElementById('theme-icon-moon'), shipTimeEl: document.getElementById('ship-time'), utcTimeEl: document.getElementById('utc-time'),
+                    settingsButton: document.getElementById('settings-button'), settingsModal: document.getElementById('settingsModal'),
+                    closeSettingsButton: document.getElementById('close-settings-button'), cancelSettingsButton: document.getElementById('cancel-settings-button'),
+                    settingsForm: document.getElementById('settings-form'), weatherWidget: document.getElementById('weather-forecast-widget'),
+                    weatherModal: document.getElementById('weatherModal'), closeWeatherButton: document.getElementById('close-weather-button'),
+                    weatherModalContent: document.getElementById('weather-modal-content'),
+                    settingEcdis: document.getElementById('setting-ecdis-enabled'), settingOpStatus: document.getElementById('setting-op-status'),
+                    settingModeLabel: document.getElementById('setting-mode-label'), settingDpMode: document.getElementById('setting-dp-mode'),
+                    ecdisSettingsPanel: document.getElementById('ecdis-settings-panel'), quickSelectContainer: document.getElementById('quick-select-locations'),
+                    quickSelectRoutesContainer: document.getElementById('quick-select-routes-container'), quickSelectRoutes: document.getElementById('quick-select-routes'),
+                    forecastContainer: document.getElementById('forecast-container'),
+                    distanceContainer: document.getElementById('distance-container'),
+                    distanceModal: document.getElementById('distanceModal'),
+                    closeDistanceButton: document.getElementById('close-distance-button')
+                };
+                Object.assign(dom, domElements);
+
+                applyTheme(localStorage.getItem('dayboard-theme') === 'light', true);
+                updateClocks(); setInterval(updateClocks, 1000);
+                
+                initMap();
+                generateDailyForecast();
+                renderDayboard();
+                runSimulation(); setInterval(runSimulation, 2000);
+
+                setupEventListeners();
+            }
+
+            function setupEventListeners() {
+                dom.themeToggleButton.addEventListener('click', toggleTheme);
+                dom.settingsButton.addEventListener('click', openSettingsModal);
+                dom.mapToggleButton.addEventListener('click', toggleMapSize);
+                dom.closeSettingsButton.addEventListener('click', () => dom.settingsModal.classList.add('hidden'));
+                dom.cancelSettingsButton.addEventListener('click', () => dom.settingsModal.classList.add('hidden'));
+                dom.settingsForm.addEventListener('submit', saveSettings);
+                dom.weatherWidget.addEventListener('click', () => {
+                    renderWeatherModal();
+                    dom.weatherModal.classList.remove('hidden');
+                });
+                dom.closeWeatherButton.addEventListener('click', () => dom.weatherModal.classList.add('hidden'));
+                dom.distanceContainer.addEventListener('click', openDistanceModal);
+                dom.closeDistanceButton.addEventListener('click', () => dom.distanceModal.classList.add('hidden'));
+                dom.settingEcdis.addEventListener('change', (e) => {
+                    // On enabling the ECDIS, set a default route if one isn't already active
+                    if (e.target.checked && !appState.settings.ecdisEnabled) { 
+                        applyRoutePreset('Hull to Hornsea 1', routePresets['Hull to Hornsea 1']);
+                    }
+                    updateModeSettingsUI();
+                });
+                dom.settingOpStatus.addEventListener('change', updateModeSettingsUI);
+            }
+
+            function toggleMapSize() {
+                const isMaximized = dom.mainContainer.classList.toggle('map-maximized');
+                dom.voyageVitalsWidget.classList.toggle('maximized-widget', isMaximized);
+                dom.iconMaximize.classList.toggle('hidden', isMaximized);
+                dom.iconMinimize.classList.toggle('hidden', !isMaximized);
+                setTimeout(() => { map.invalidateSize(); }, 300);
+            }
+
+            // --- STATE & THEME ---
+            function loadState() {
+                const savedSettings = localStorage.getItem('dayboard-settings');
+                if (savedSettings) { 
+                    appState.settings = JSON.parse(savedSettings); 
+                    if (!appState.settings.routeName) { // Backwards compatibility for old saves
+                        appState.settings.routeName = '';
+                    }
+                } 
+                else { appState.settings.mealSchedule = mealConfig; }
+                appState.liveData.latitude = appState.settings.latitude || 58.85;
+                appState.liveData.longitude = appState.settings.longitude || 2.3;
+                appState.liveData.distanceYtd = appState.settings.distanceYtd || 42513;
+            }
+            function saveState() { 
+                appState.settings.distanceYtd = appState.liveData.distanceYtd;
+                localStorage.setItem('dayboard-settings', JSON.stringify(appState.settings)); 
+            }
+            
+            function toggleTheme() {
+                const isLight = dom.body.classList.toggle('light-theme');
+                localStorage.setItem('dayboard-theme', isLight ? 'light' : 'dark');
+                applyTheme(isLight, false);
+            }
+
+            function applyTheme(isLight, isInitial = false) {
+                dom.body.classList.toggle('light-theme', isLight);
+                dom.themeIconSun.classList.toggle('hidden', isLight);
+                dom.themeIconMoon.classList.toggle('hidden', !isLight);
+                // Layer switching is now handled by the user via the layers control
+            }
+            function updateClocks() {
+                const now = new Date();
+                if(dom.shipTimeEl) dom.shipTimeEl.textContent = now.toLocaleTimeString('en-GB');
+                if(dom.utcTimeEl) dom.utcTimeEl.textContent = now.toLocaleTimeString('en-GB', { timeZone: 'UTC' });
+            }
+
+            // --- SETTINGS MODAL ---
+            function openSettingsModal() {
+                document.getElementById('setting-lat').value = appState.liveData.latitude.toFixed(4);
+                document.getElementById('setting-lon').value = appState.liveData.longitude.toFixed(4);
+
+                dom.quickSelectContainer.innerHTML = '';
+                Object.entries(quickSelectLocations).forEach(([name, coords]) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-3 py-1 text-sm rounded-md bg-border-primary hover:bg-border-secondary transition-colors';
+                    btn.textContent = name;
+                    btn.onclick = () => {
+                        document.getElementById('setting-lat').value = coords.lat;
+                        document.getElementById('setting-lon').value = coords.lon;
+                    };
+                    dom.quickSelectContainer.appendChild(btn);
+                });
+
+                document.getElementById('setting-shore-leave').checked = appState.settings.shoreLeavePermitted;
+                dom.settingEcdis.checked = appState.settings.ecdisEnabled;
+                document.getElementById('setting-weather-enabled').checked = appState.settings.weatherEnabled;
+                
+                // Populate motion limits
+                document.getElementById('setting-heave-amber').value = appState.settings.motionLimits.heave.amber;
+                document.getElementById('setting-heave-red').value = appState.settings.motionLimits.heave.red;
+                document.getElementById('setting-pitch-amber').value = appState.settings.motionLimits.pitch.amber;
+                document.getElementById('setting-pitch-red').value = appState.settings.motionLimits.pitch.red;
+                document.getElementById('setting-roll-amber').value = appState.settings.motionLimits.roll.amber;
+                document.getElementById('setting-roll-red').value = appState.settings.motionLimits.roll.red;
+
+                populateSelect(dom.settingOpStatus, operationalScenarios.map(s => s.status), appState.settings.operationalStatus);
+                updateModeSettingsUI();
+                populateRoutePresets();
+
+                document.getElementById('setting-etd').value = appState.settings.etd || getFormattedDateTime(1);
+                document.getElementById('setting-eta').value = appState.settings.eta || getFormattedDateTime(2);
+
+                const mealContainer = document.getElementById('meal-schedule-inputs');
+                mealContainer.innerHTML = '';
+                Object.entries(appState.settings.mealSchedule).forEach(([meal, time]) => {
+                    mealContainer.innerHTML += `<div><label for="meal-time-${meal.toLowerCase().replace(' ','-')}" class="text-sm text-secondary block">${meal}</label><input type="time" id="meal-time-${meal.toLowerCase().replace(' ','-')}" value="${time}" class="form-input w-full p-2"></div>`;
+                });
+                dom.settingsModal.classList.remove('hidden');
+            }
+            
+            function populateRoutePresets(){
+                dom.quickSelectRoutes.innerHTML = '';
+                 Object.entries(routePresets).forEach(([name, route]) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-3 py-1 text-sm rounded-md bg-border-primary hover-bg-border-secondary transition-colors';
+                    btn.textContent = name;
+                    btn.onclick = () => applyRoutePreset(name, route);
+                    dom.quickSelectRoutes.appendChild(btn);
+                });
+            }
+
+            function applyRoutePreset(name, route) {
+                appState.settings.routeName = name;
+                const start = quickSelectLocations[route.start];
+                const end = quickSelectLocations[route.end];
+
+                document.getElementById('setting-lat').value = start.lat.toFixed(4);
+                document.getElementById('setting-lon').value = start.lon.toFixed(4);
+                dom.settingOpStatus.value = 'At Sea, Transit';
+
+                const distanceNm = calculateDistance(start.lat, start.lon, end.lat, end.lon);
+                const travelHours = distanceNm / 12; // Assume 12 knots average speed
+
+                const etd = new Date();
+                etd.setHours(etd.getHours() + 1);
+                const eta = new Date(etd.getTime() + travelHours * 60 * 60 * 1000);
+
+                document.getElementById('setting-etd').value = getFormattedDateTime(etd);
+                document.getElementById('setting-eta').value = getFormattedDateTime(eta);
+
+                updateModeSettingsUI();
+            }
+
+            function updateModeSettingsUI() {
+                const ecdis = dom.settingEcdis.checked;
+                const status = dom.settingOpStatus.value;
+                const isTransit = status.includes('Transit');
+                const isInPort = status.includes('In port');
+
+                document.getElementById('in-port-settings-panel').classList.toggle('hidden', !isInPort);
+                
+                dom.settingModeLabel.textContent = ecdis ? "Vessel Mode" : "DP Mode";
+                dom.ecdisSettingsPanel.classList.toggle('hidden', !ecdis);
+                dom.quickSelectRoutesContainer.classList.toggle('hidden', !ecdis);
+
+                let options = [], selected = dom.settingDpMode.value, disabled = false;
+
+                if (isTransit) {
+                    if (ecdis) {
+                        options = vesselModes;
+                        if (!options.includes(selected)) { selected = 'Autopilot'; }
+                    } else {
+                        options = ['N/A']; selected = 'N/A'; disabled = true;
+                    }
+                } else {
+                    options = dpModes;
+                    if (!options.includes(selected)) { selected = dpModes[0]; }
+                }
+                
+                populateSelect(dom.settingDpMode, options, selected);
+                dom.settingDpMode.disabled = disabled;
+            }
+
+            function populateSelect(selectEl, options, selectedValue) {
+                const currentValue = selectEl.value;
+                 selectEl.innerHTML = '';
+                options.forEach(option => {
+                    const opt = document.createElement('option');
+                    opt.value = opt.textContent = option;
+                    selectEl.appendChild(opt);
+                });
+                if (options.includes(selectedValue)) {
+                    selectEl.value = selectedValue;
+                } else if (options.includes(currentValue)) {
+                    selectEl.value = currentValue;
+                } else if (options.length > 0) {
+                    selectEl.value = options[0];
+                }
+            }
+
+            function saveSettings(e) {
+                e.preventDefault();
+                appState.settings.operationalStatus = dom.settingOpStatus.value;
+                appState.settings.dpMode = dom.settingDpMode.value;
+                appState.settings.shoreLeavePermitted = document.getElementById('setting-shore-leave').checked;
+                appState.settings.ecdisEnabled = dom.settingEcdis.checked;
+                appState.settings.weatherEnabled = document.getElementById('setting-weather-enabled').checked;
+                
+                // Save motion limits
+                appState.settings.motionLimits.heave.amber = parseFloat(document.getElementById('setting-heave-amber').value);
+                appState.settings.motionLimits.heave.red = parseFloat(document.getElementById('setting-heave-red').value);
+                appState.settings.motionLimits.pitch.amber = parseFloat(document.getElementById('setting-pitch-amber').value);
+                appState.settings.motionLimits.pitch.red = parseFloat(document.getElementById('setting-pitch-red').value);
+                appState.settings.motionLimits.roll.amber = parseFloat(document.getElementById('setting-roll-amber').value);
+                appState.settings.motionLimits.roll.red = parseFloat(document.getElementById('setting-roll-red').value);
+
+                appState.liveData.latitude = parseFloat(document.getElementById('setting-lat').value);
+                appState.liveData.longitude = parseFloat(document.getElementById('setting-lon').value);
+                appState.settings.latitude = appState.liveData.latitude;
+                appState.settings.longitude = appState.liveData.longitude;
+
+                appState.settings.etd = document.getElementById('setting-etd').value;
+                appState.settings.eta = document.getElementById('setting-eta').value;
+
+                Object.keys(appState.settings.mealSchedule).forEach(meal => {
+                    const timeInput = document.getElementById(`meal-time-${meal.toLowerCase().replace(' ','-')}`);
+                    if (timeInput) appState.settings.mealSchedule[meal] = timeInput.value;
+                });
+                saveState();
+                dom.settingsModal.classList.add('hidden');
+                renderDayboard();
+                map.panTo([appState.liveData.latitude, appState.liveData.longitude]);
+            }
+
+            // --- MAP ---
+            function initMap() {
+                map = L.map('map', { center: [appState.liveData.latitude, appState.liveData.longitude], zoom: 7, zoomControl: true, attributionControl: true });
+
+                const cartoAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+                darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, className: 'dark-theme', attribution: cartoAttribution });
+                lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, className: 'light-theme', attribution: cartoAttribution });
+                
+                const openSeaMapLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: 'Map data: © <a href="http://www.openseamap.org">OpenSeaMap</a> contributors'
+                });
+
+                const baseMaps = {
+                    "Carto Dark": darkTileLayer,
+                    "Carto Light": lightTileLayer
+                };
+                const overlayMaps = {
+                    "Nautical Marks": openSeaMapLayer
+                };
+
+                // Set default base layer based on theme
+                if (localStorage.getItem('dayboard-theme') === 'light') {
+                    lightTileLayer.addTo(map);
+                } else {
+                    darkTileLayer.addTo(map);
+                }
+                openSeaMapLayer.addTo(map); // Add seamarks by default
+
+                L.control.layers(baseMaps, overlayMaps).addTo(map);
+                L.control.scale({ imperial: false, nautical: true }).addTo(map);
+
+                // Create the initial ship icon and set up listener for zoom changes
+                updateShipIcon();
+                map.on('zoomend', updateShipIcon);
+            }
+
+            function updateShipIcon() {
+                const vesselLengthMeters = 100;
+                const vesselWidthMeters = 29; // Approx 15% wider, new aspect ratio
+
+                // Calculate the pixel dimensions for the vessel at the current zoom level and latitude
+                const centerLatLng = map.getCenter();
+                const pointC = map.latLngToContainerPoint(centerLatLng);
+                const pointY = L.point(pointC.x, pointC.y + 1);
+                const latLngY = map.containerPointToLatLng(pointY);
+                const metersPerPixel = centerLatLng.distanceTo(latLngY);
+
+                let shipPixelLength = vesselLengthMeters / metersPerPixel;
+                let shipPixelWidth = vesselWidthMeters / metersPerPixel;
+
+                // Add constraints to prevent icon from being too big or small
+                const minPixelSize = 24;
+                if (shipPixelLength < minPixelSize) {
+                    const ratio = shipPixelLength / minPixelSize;
+                    shipPixelLength = minPixelSize;
+                    shipPixelWidth = shipPixelWidth / ratio;
+                }
+                const maxPixelSize = 300;
+                 if (shipPixelLength > maxPixelSize) {
+                    const ratio = shipPixelLength / maxPixelSize;
+                    shipPixelLength = maxPixelSize;
+                    shipPixelWidth = shipPixelWidth / ratio;
+                }
+
+                // SVG shape for a vessel pointing North (up)
+                const shipSvg = `
+                    <svg class="ship-svg" width="${shipPixelWidth}" height="${shipPixelLength}" viewBox="0 0 29 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14.5 0 L0 30 L0 100 L29 100 L29 30 Z" fill="#0ea5e9" stroke="#000" stroke-width="3" vector-effect="non-scaling-stroke"/>
+                    </svg>
+                `;
+                
+                const newIcon = L.divIcon({
+                    html: shipSvg,
+                    iconSize: [shipPixelWidth, shipPixelLength],
+                    iconAnchor: [shipPixelWidth / 2, shipPixelLength / 2],
+                    className: 'ship-div-icon'
+                });
+
+                if (!shipMarker) {
+                    shipMarker = L.marker([appState.liveData.latitude, appState.liveData.longitude], { icon: newIcon }).addTo(map);
+                } else {
+                    shipMarker.setIcon(newIcon);
+                }
+
+                // Immediately apply the current rotation after setting the new icon to prevent "resetting" on zoom
+                const markerElement = shipMarker.getElement();
+                if (markerElement) {
+                    const shipSvgElement = markerElement.querySelector('.ship-svg');
+                    if (shipSvgElement) {
+                        shipSvgElement.style.transform = `rotate(${appState.liveData.heading}deg)`;
+                    }
+                }
+            }
+
+            // --- FORECAST SIMULATION ---
+            function generateDailyForecast() {
+                appState.forecast = [];
+                let wind = 15; let wave = 1.5; let swell = 0.8;
+                for (let i = 0; i < 8; i++) { // 8 blocks of 3 hours
+                    wind += (Math.random() - 0.5) * 4;
+                    wind = Math.max(5, Math.min(35, wind));
+                    wave += (Math.random() - 0.5) * 0.5;
+                    wave = Math.max(0.5, Math.min(4, wave));
+                    swell += (Math.random() - 0.4) * 0.3;
+                    swell = Math.max(0.2, Math.min(2.5, swell));
+                    
+                    let summary = "Partly Cloudy";
+                    if (wind > 25 || wave > 3) summary = "Rough Seas";
+                    else if (wind < 10) summary = "Calm";
+
+                    appState.forecast.push({
+                        time: `${String(i*3).padStart(2,'0')}-${String((i+1)*3).padStart(2,'0')} UTC`,
+                        wind: wind.toFixed(0),
+                        wave: wave.toFixed(1),
+                        swell: swell.toFixed(1),
+                        summary: summary
+                    });
+                }
+            }
+
+            // --- DISTANCE MODAL ---
+            function openDistanceModal() {
+                const distanceNm = appState.liveData.distanceYtd;
+                const distToMoonNm = 209924;
+                const earthCircumferenceNm = 21639;
+
+                const tripsToMoon = distanceNm / distToMoonNm;
+                const timesAroundEarth = distanceNm / earthCircumferenceNm;
+
+                document.getElementById('modal-distance-nm').textContent = Math.round(distanceNm).toLocaleString();
+                document.getElementById('modal-distance-moon').textContent = tripsToMoon.toFixed(3);
+                document.getElementById('modal-distance-earth').textContent = timesAroundEarth.toFixed(2);
+                
+                dom.distanceModal.classList.remove('hidden');
+            }
+
+
+            // --- HELPERS ---
+            function getMenuItem(meal) { switch(meal) { case 'Breakfast': return 'Scrambled Eggs & Bacon'; case 'Lunch': return 'Chicken Stir-fry'; case 'Dinner': return 'Baked Salmon'; default: return 'Coffee & Snacks'; } }
+            function formatCoord(coord, type) { const dir = coord >= 0 ? (type === 'lat' ? 'N' : 'E') : (type === 'lat' ? 'S' : 'W'); const abs = Math.abs(coord); const deg = Math.floor(abs); const min = (abs - deg) * 60; return `${deg}° ${min.toFixed(2)}' ${dir}`; }
+            function formatDateTime(isoString) {
+                if (!isoString) return '--';
+                const date = new Date(isoString);
+                const options = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false };
+                return date.toLocaleString('en-GB', options).replace(',', '');
+            }
+            function getFormattedDateTime(dateOrOffset) {
+                let date;
+                if (typeof dateOrOffset === 'number') {
+                    date = new Date();
+                    date.setDate(date.getDate() + dateOrOffset);
+                } else {
+                    date = dateOrOffset;
+                }
+                return date.toISOString().slice(0, 16);
+            }
+             function calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 3440.1; // Radius of Earth in nautical miles
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c;
+            }
+
+            function calculateRMS(arr) {
+                if (!arr || arr.length === 0) return 0;
+                const sumOfSquares = arr.reduce((acc, val) => acc + (val * val), 0);
+                return Math.sqrt(sumOfSquares / arr.length);
+            }
+
+            // --- MAIN RENDER & SIMULATION ---
+            function renderDayboard() {
+                document.getElementById('ecdis-widget').classList.toggle('hidden', !appState.settings.ecdisEnabled);
+                dom.forecastContainer.classList.toggle('hidden', !appState.settings.weatherEnabled);
+                document.getElementById('vessel-mode-label').textContent = appState.settings.ecdisEnabled ? "Vessel Mode" : "DP Mode";
+                
+                const menuContainer = document.getElementById('menu-widget');
+                const sortedMeals = Object.entries(appState.settings.mealSchedule).sort((a,b) => a[1].localeCompare(b[1]));
+                menuContainer.innerHTML = '';
+                sortedMeals.forEach(([meal, time]) => {
+                     menuContainer.innerHTML += `<div><p class="font-bold text-cyan-400">${meal} (${time})</p><p class="text-primary">${getMenuItem(meal)}</p></div>`;
+                });
+
+                if(appState.settings.weatherEnabled) {
+                    renderForecastWidget();
+                }
+            }
+            
+             function renderForecastWidget() {
+                const container = dom.weatherWidget;
+                const windIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-1 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6H6a6 6 0 006 6zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.4"></path><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-3.3-2.7-6-6-6s-6 2.7-6 6"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
+                const waveIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-1 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12.5c3-3 6 3 9 0s6-3 9 0M4 7.5c3-3 6 3 9 0s6-3 9 0"></path></svg>`;
+                
+                container.innerHTML = '';
+                // Show first 3 blocks
+                for(let i=0; i<3; i++) {
+                    const block = appState.forecast[i];
+                    container.innerHTML += `
+                        <div class="flex items-center justify-between text-sm p-2 rounded ${i % 2 === 1 ? 'bg-border-primary' : ''}">
+                            <span class="font-bold text-secondary w-20">${i === 0 ? 'Next 3 hrs' : block.time}</span>
+                            <div class="flex items-center gap-4 text-center">
+                                <div class="w-20">
+                                    <p class="font-bold text-headings flex items-center justify-center">${windIconSvg} ${block.wind} <span class="text-xs text-secondary ml-1">kts</span></p>
+                                    <p class="text-xs text-secondary">Wind</p>
+                                </div>
+                                <div class="w-20">
+                                    <p class="font-bold text-headings flex items-center justify-center">${waveIconSvg} ${block.wave} <span class="text-xs text-secondary ml-1">m</span></p>
+                                    <p class="text-xs text-secondary">Wave</p>
+                                </div>
+                                 <div class="w-20">
+                                    <p class="font-bold text-headings flex items-center justify-center">${waveIconSvg} ${block.swell} <span class="text-xs text-secondary ml-1">m</span></p>
+                                    <p class="text-xs text-secondary">Swell</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            function renderWeatherModal() {
+                const container = dom.weatherModalContent;
+                container.innerHTML = '';
+                appState.forecast.forEach((block, i) => {
+                     container.innerHTML += `
+                        <div class="flex justify-between items-center p-2 rounded-md ${i % 2 === 0 ? 'bg-border-primary' : ''}">
+                            <span class="font-bold">${block.time}</span>
+                            <span>${block.summary}, Wind ${block.wind} kts, Wave ${block.wave}m</span>
+                        </div>
+                       `;
+                });
+            }
+
+
+            function runSimulation() {
+                const time = Date.now();
+                const scenario = operationalScenarios.find(s => s.status === appState.settings.operationalStatus) || operationalScenarios[0];
+                
+                appState.liveData.heading = (225 + Math.sin(time / 10000) * 45) % 360;
+                let sog = 0.1;
+                if (scenario.status.includes('Transit')) {
+                    sog = 12.5 + Math.cos(time / 15000);
+                    const movedDist = sog * (2000 / 3600000); // 2000ms interval
+                    appState.liveData.distanceYtd += movedDist;
+                    appState.liveData.latitude += Math.cos(appState.liveData.heading * Math.PI / 180) * sog * 0.00001;
+                    appState.liveData.longitude += Math.sin(appState.liveData.heading * Math.PI / 180) * sog * 0.00002;
+                } else if (!scenario.status.includes('In port')) {
+                    appState.liveData.latitude += Math.sin(time / 50000) * 0.0001;
+                    appState.liveData.longitude += Math.cos(time / 50000) * 0.0001;
+                } else {
+                     appState.liveData.latitude = appState.settings.latitude;
+                     appState.liveData.longitude = appState.settings.longitude;
+                }
+                
+                document.getElementById('dp-status').textContent = appState.settings.dpMode;
+                document.getElementById('vessel-heading').textContent = `${appState.liveData.heading.toFixed(0)}°`;
+                document.getElementById('vessel-sog').innerHTML = `${sog.toFixed(1)} <span class="text-2xl">kts</span>`;
+                document.getElementById('vessel-position').textContent = `${formatCoord(appState.liveData.latitude, 'lat')}, ${formatCoord(appState.liveData.longitude, 'lon')}`;
+
+                const newLatLng = [appState.liveData.latitude, appState.liveData.longitude];
+                shipMarker.setLatLng(newLatLng);
+                const markerElement = shipMarker.getElement();
+                if (markerElement) {
+                    const shipSvgElement = markerElement.querySelector('.ship-svg');
+                    if (shipSvgElement) {
+                        shipSvgElement.style.transform = `rotate(${appState.liveData.heading}deg)`;
+                    }
+                }
+
+                document.getElementById('wind-speed').innerHTML = `${(15 + Math.sin(time / 8000) * 5).toFixed(0)} <span class="text-2xl font-medium">kts</span>`;
+                
+                // --- Motion Data Simulation & Calculation ---
+                const history = appState.liveData.motionHistory;
+                const tenMinutesAgo = time - 600000; // 10 minutes in ms
+
+                // Add new data point
+                const newRoll = Math.sin(time / 2000) * 1.5 + (Math.random() - 0.5) * 0.5;
+                const newPitch = Math.sin(time / 2500) * 0.8 + (Math.random() - 0.5) * 0.4;
+                const newHeave = Math.cos(time / 1800) * 0.5 + (Math.random() - 0.5) * 0.3;
+                history.push({ t: time, roll: newRoll, pitch: newPitch, heave: newHeave });
+                
+                // Prune old data
+                const firstValidIndex = history.findIndex(p => p.t >= tenMinutesAgo);
+                if (firstValidIndex > 0) {
+                    history.splice(0, firstValidIndex);
+                }
+
+                // Calculate RMS
+                const rmsRoll = calculateRMS(history.map(p => p.roll));
+                const rmsPitch = calculateRMS(history.map(p => p.pitch));
+                const rmsHeave = calculateRMS(history.map(p => p.heave));
+
+                updateMotionSummary(rmsHeave, rmsPitch, rmsRoll);
+
+
+                document.getElementById('port-status').textContent = scenario.status;
+                const shoreLeaveEl = document.getElementById('shore-leave-status');
+                if (scenario.status.includes('In port')) {
+                    if (appState.settings.shoreLeavePermitted) {
+                        shoreLeaveEl.textContent = 'Shore leave: Permitted';
+                        shoreLeaveEl.className = 'text-xs font-semibold mt-1 text-green-400';
+                    } else {
+                        shoreLeaveEl.textContent = 'Shore leave: not permitted';
+                        shoreLeaveEl.className = 'text-xs font-semibold mt-1 text-red-400';
+                    }
+                } else {
+                    shoreLeaveEl.textContent = '';
+                    shoreLeaveEl.className = 'text-xs font-semibold mt-1';
+                }
+                
+                document.getElementById('crew-change-countdown').textContent = '14';
+                document.getElementById('daily-briefing-list').innerHTML = `<li>Weekly fire and abandon ship drill at 14:00 today.</li><li>Stores crane operation on starboard side from 09:00 to 11:00.</li>`;
+                document.getElementById('safety-moment-text').textContent = 'Check your footing on deck. Recent rain has left some surfaces slippery.';
+
+                if(appState.settings.ecdisEnabled) {
+                     document.getElementById('ecdis-route').textContent = scenario.status.includes('In port') ? 'N/A' : (appState.settings.routeName || '--');
+                     document.getElementById('ecdis-etd').textContent = formatDateTime(appState.settings.etd);
+                     document.getElementById('ecdis-eta').textContent = formatDateTime(appState.settings.eta);
+
+                     // Update progress bar
+                    const etdString = appState.settings.etd;
+                    const etaString = appState.settings.eta;
+                    const progressBar = document.getElementById('voyage-progress-bar');
+                    const progressText = document.getElementById('voyage-progress-text');
+
+                    if (etdString && etaString && progressBar) {
+                        const etd = new Date(etdString);
+                        const eta = new Date(etaString);
+                        
+                        let progress = 0;
+                        if (time >= eta.getTime()) {
+                            progress = 100;
+                        } else if (time > etd.getTime()) {
+                            const totalDuration = eta.getTime() - etd.getTime();
+                            const elapsedDuration = time - etd.getTime();
+                            if (totalDuration > 0) {
+                                progress = (elapsedDuration / totalDuration) * 100;
+                            }
+                        }
+                        
+                        progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+                        progressText.textContent = `${Math.round(progress)}%`;
+                    }
+
+                }
+
+                // Update new KPIs
+                const efficiency = 92.5 + Math.sin(time/12000) * 4;
+                document.getElementById('load-efficiency').textContent = `${efficiency.toFixed(1)}%`;
+                document.getElementById('load-efficiency-ref').textContent = `vs. 200 g/kWh @ 75%`;
+                document.getElementById('turbines-serviced').textContent = Math.floor(12 + Math.sin(time/86400000) * 3);
+                document.getElementById('distance-ytd').textContent = Math.round(appState.liveData.distanceYtd).toLocaleString();
+            }
+
+            function updateMotionSummary(rmsHeave, rmsPitch, rmsRoll) {
+                const container = document.getElementById('motion-summary-container');
+                const limits = appState.settings.motionLimits;
+                
+                const motionData = [
+                    { name: 'Heave', value: rmsHeave, unit: 'm', limits: limits.heave },
+                    { name: 'Pitch', value: rmsPitch, unit: '°', limits: limits.pitch },
+                    { name: 'Roll', value: rmsRoll, unit: '°', limits: limits.roll }
+                ];
+
+                container.innerHTML = ''; // Clear previous content
+
+                motionData.forEach(item => {
+                    let color = 'var(--status-green)';
+                    if (item.value >= item.limits.red) color = 'var(--status-red)';
+                    else if (item.value >= item.limits.amber) color = 'var(--status-amber)';
+
+                    container.innerHTML += `
+                        <div class="flex items-center justify-between text-lg">
+                            <div class="flex items-center">
+                                <span class="status-dot" style="background-color: ${color};"></span>
+                                <span class="text-secondary">${item.name}</span>
+                            </div>
+                            <span class="font-bold text-headings">${Math.abs(item.value).toFixed(2)}${item.unit}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            init();
+        });
+    </script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
