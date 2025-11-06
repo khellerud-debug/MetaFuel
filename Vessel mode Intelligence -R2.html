@@ -1,0 +1,2084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-IMS Vessel Mode Intelligence</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- LeafletJS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Leaflet.draw Plugin -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+
+    <!-- All design styles and variables are included here -->
+    <style>
+        /* CSS Variables for Theming */
+        :root {
+            --bg-primary: #111827; /* gray-900 */
+            --bg-secondary: #1f2937; /* gray-800 */
+            --bg-widget: #1f2937; /* gray-800 */
+            --bg-header-btn-container: #374151; /* gray-700 */
+            --text-primary: #d1d5db; /* gray-300 */
+            --text-secondary: #9ca3af; /* gray-400 */
+            --text-headings: #ffffff; /* white */
+            --text-accent: #38bdf8; /* sky-400 */
+            --border-primary: #374151; /* gray-700 */
+            --border-secondary: #4b5563; /* gray-600 */
+            --accent-cyan: #0891b2; /* cyan-600 */
+            --accent-cyan-hover: #06b6d4; /* cyan-500 */
+            --accent-yellow: #f59e0b; /* amber-500 */
+            --accent-red: #ef4444; /* red-500 */
+            --accent-green: #22c55e; /* green-500 */
+            --cyan-glow-color: rgba(56, 189, 248, 0.5);
+            --construction-yellow: #facc15; /* yellow-400 - Kept for reference, but fixed below */
+            --construction-black: #111827; /* gray-900 - Kept for reference, but fixed below */
+        }
+
+        body.light-theme {
+            --bg-primary: #f9fafb; /* gray-50 */
+            --bg-secondary: #f3f4f6; /* gray-100 */
+            --bg-widget: #ffffff; /* white */
+            --bg-header-btn-container: #e5e7eb; /* gray-200 */
+            --text-primary: #374151; /* gray-700 */
+            --text-secondary: #6b7280; /* gray-500 */
+            --text-headings: #111827; /* gray-900 */
+            --text-accent: #0284c7; /* sky-600 */
+            --border-primary: #e5e7eb; /* gray-200 */
+            --border-secondary: #d1d5db; /* gray-300 */
+            --accent-cyan: #0891b2; /* cyan-600 */
+            --accent-cyan-hover: #06b6d4; /* cyan-500 */
+            --accent-yellow: #f59e0b; /* amber-500 */
+            --accent-red: #ef4444; /* red-500 */
+            --accent-green: #22c55e; /* green-500 */
+            --cyan-glow-color: rgba(14, 165, 233, 0.4);
+            /* --construction-black: #000000; Removed as fixed colors are used now */
+        }
+
+        /* Base styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .text-glow { text-shadow: 0 0 10px var(--cyan-glow-color); }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-secondary); }
+
+        .widget {
+            background-color: var(--bg-widget);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-primary);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* Navigation & UI Elements */
+        .main-tabs button { color: var(--text-secondary); font-weight: 500; transition: all 0.2s; border-bottom: 2px solid transparent; }
+        .main-tabs button:hover:not(:disabled) { color: var(--text-headings); }
+        .main-tabs button.active { color: var(--text-accent); border-bottom-color: var(--text-accent); }
+        .main-tabs button:disabled { opacity: 0.5; cursor: not-allowed; color: var(--text-secondary) !important; border-bottom-color: transparent !important; }
+
+        .sub-tabs { background-color: var(--bg-secondary); }
+        .sub-tabs button { color: var(--text-secondary); }
+        .sub-tabs button:hover:not(:disabled) { color: var(--text-headings); }
+        .sub-tabs button.active { background-color: var(--accent-cyan); color: white; font-weight: 600; }
+        .sub-tabs button:disabled { opacity: 0.5; cursor: not-allowed; background-color: transparent !important; color: var(--text-secondary) !important; }
+        
+        .mode-item.active, .geofence-item.selected { background-color: var(--accent-cyan) !important; color: white !important; font-weight: 600; }
+         .mode-item > div > i, .geofence-parent > div > i { transition: transform 0.2s; }
+         .mode-item.expanded > div > i, .geofence-parent.expanded > div > i { transform: rotate(90deg); }
+
+        .modal-input { background-color: var(--bg-primary); border: 1px solid var(--border-secondary); color: var(--text-primary); border-radius: 0.375rem; padding: 0.5rem 0.75rem; /* Added padding */ }
+         .modal-input:disabled { background-color: var(--bg-secondary); cursor: not-allowed; opacity: 0.6; }
+        select.modal-input:disabled { -webkit-appearance: none; appearance: none; } /* Hide dropdown arrow when disabled */
+        .modal-input.border-red-500 { border-color: var(--accent-red); } /* Error state */
+
+        .geofence-parent .ph-caret-right { transition: transform 0.2s; }
+        .geofence-parent.expanded .ph-caret-right { transform: rotate(90deg); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Leaflet & Leaflet.draw Theming */
+        .leaflet-container { background: var(--bg-secondary); }
+        .leaflet-bar a, .leaflet-bar a:hover { background-color: var(--bg-widget) !important; color: var(--text-primary) !important; border-color: var(--border-primary) !important; }
+        .leaflet-draw-toolbar a { background-color: var(--bg-widget) !important; }
+        .leaflet-draw-actions a { background-color: var(--bg-secondary) !important; }
+        .leaflet-control-attribution { background: rgba(31, 41, 55, 0.8) !important; color: var(--text-secondary) !important; }
+        .leaflet-control-attribution a { color: var(--text-accent) !important; }
+
+        /* Subscription Toggle */
+         .construction-tape {
+            background-image: repeating-linear-gradient(
+                -45deg,
+                #111827, /* Fixed black */
+                #111827 10px,
+                #facc15 10px, /* Fixed yellow */
+                #facc15 20px
+            );
+            border: 1px solid var(--border-primary); /* Use primary border color */
+        }
+        .construction-text {
+             color: white; /* Fixed white text */
+             /* Add text shadow for black outline */
+             text-shadow: 
+                -1px -1px 0 #000, 
+                 1px -1px 0 #000, 
+                -1px  1px 0 #000, 
+                 1px  1px 0 #000;
+        }
+         /* Simple toggle switch */
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-primary); transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-cyan); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Upgrade Overlay */
+        .upgrade-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            z-index: 50;
+            padding: 2rem;
+            border-radius: 0.75rem; /* Match widget */
+        }
+        .upgrade-overlay i { font-size: 3rem; margin-bottom: 0.5rem; color: var(--accent-yellow); }
+
+        /* Improved Modal Spacing */
+         #confirmation-modal .widget > div:first-child { /* Header */
+            padding: 1rem 1.5rem; 
+            border-bottom: 1px solid var(--border-primary);
+         }
+          #confirmation-modal .widget > div:nth-child(2) { /* Content Area */
+             padding: 1.5rem;
+         }
+          #confirmation-modal .widget > div:nth-child(2) > div:last-child { /* Footer buttons area */
+             padding-top: 1rem; /* Space above buttons */
+             margin-top: 1rem; /* Space between text and buttons */
+             border-top: 1px solid var(--border-primary);
+          }
+
+         #input-modal .widget > div:first-child { /* Header */
+            padding: 1rem 1.5rem; 
+            border-bottom: 1px solid var(--border-primary);
+         }
+         #input-modal .widget > div:nth-child(2) { /* Content */
+             padding: 1.5rem;
+         }
+         #input-modal .widget > div:nth-child(2) > div:last-child { /* Footer */
+              padding-top: 1.5rem;
+              border-top: 1px solid var(--border-primary);
+              margin-top: 1rem; /* Space before footer */
+          }
+         .condition-read-only {
+            opacity: 0.6;
+            /* background-color: var(--bg-secondary); */
+            border-bottom: 1px dashed var(--border-secondary);
+            padding-bottom: 0.75rem;
+            margin-bottom: 0.75rem;
+         }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="p-4 sm:p-6 lg:p-8 max-w-screen-2xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-headings">K-IMS Vessel Mode Intelligence</h1>
+                <p class="text-secondary text-sm">Vessel: KV Barentshav</p>
+            </div>
+             <!-- Subscription Toggle -->
+            <div class="p-2 rounded construction-tape flex items-center space-x-2">
+                <span class="text-xs font-semibold uppercase tracking-wider construction-text">ADVANCED FEATURES</span> <!-- Updated Text -->
+                <label class="switch">
+                  <input type="checkbox" id="subscription-toggle">
+                  <span class="slider"></span>
+                </label>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="main-tabs flex items-center border-b border-b-[var(--border-primary)]">
+                    <button data-view="dashboard" class="px-4 py-2 text-sm active"><i class="ph ph-layout align-middle mr-1"></i> Dashboard</button>
+                    <button data-view="configuration" class="px-4 py-2 text-sm"><i class="ph ph-gear-six align-middle mr-1"></i> Configuration</button>
+                    <button data-view="history" class="px-4 py-2 text-sm"><i class="ph ph-clock-counter-clockwise align-middle mr-1"></i> History & Log</button>
+                </div>
+                 <button id="theme-toggle-button" title="Toggle Theme" class="text-secondary hover:text-[var(--text-accent)] transition-colors">
+                     <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                     <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                 </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div id="app-content">
+            
+             <!-- VIEW: Dashboard -->
+            <div id="view-dashboard">
+                <!-- Undetected Alert -->
+                <div id="alert-undetected" class="hidden widget bg-[var(--accent-yellow)] text-gray-900 p-4 mb-6 border-2 border-yellow-300">
+                    <div class="flex items-center">
+                        <i class="ph-fill ph-warning-circle text-4xl mr-4"></i>
+                        <div>
+                            <h3 class="font-bold text-lg">Undetected State</h3>
+                            <p class="text-sm">No mode rules are fully met. The system has a suggestion based on available data.</p>
+                            <p id="suggestion-text" class="text-sm font-semibold mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Live Mode -->
+                    <div class="widget lg:col-span-2 flex flex-col justify-center items-center text-center p-8">
+                        <h2 class="text-sm font-semibold text-secondary uppercase tracking-wider mb-2">Current Vessel Mode</h2>
+                        <p id="current-mode" class="text-5xl font-black text-[var(--text-accent)] text-glow transition-all duration-300">Transit</p>
+                        <p id="current-mode-description" class="text-xs text-secondary mt-2 italic"></p> <!-- Added for description -->
+                        <div class="mt-4 flex divide-x divide-[var(--border-primary)]">
+                            <div class="px-6">
+                                <p class="text-secondary text-sm">Confidence</p>
+                                <p id="confidence-score" class="text-2xl font-bold text-headings">100%</p>
+                            </div>
+                            <div class="px-6">
+                                <p class="text-secondary text-sm">Mode Duration</p>
+                                <p id="mode-duration" class="text-2xl font-bold text-headings">00:00:00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Active Parameters -->
+                    <div class="widget lg:col-span-2 p-6">
+                        <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4 flex items-center"><i class="ph ph-list-checks text-lg mr-2"></i>Active Parameters</h2>
+                        <div id="active-params" class="space-y-3 text-sm">
+                            <!-- JS will populate this -->
+                        </div>
+                    </div>
+
+                    <!-- Vessel Status -->
+                    <div class="widget p-6">
+                        <h2 class="text-sm font-semibold text-headings uppercase tracking-wider mb-4 flex items-center"><i class="ph ph-compass text-lg mr-2"></i>Vessel Status</h2>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-secondary">Speed (SOG)</span>
+                                <span class="font-bold text-headings text-lg">10.2 kts</span>
+                            </div>
+                            <div class="flex justify-between items-baseline">
+                                <span class="text-secondary">Heading</span>
+                                <span class="font-bold text-headings text-lg">245°</span>
+                            </div>
+                             <div class="flex justify-between items-baseline">
+                                <span class="text-secondary">Engine Load</span>
+                                <span class="font-bold text-headings text-lg">68%</span>
+                            </div>
+                             <div class="flex justify-between items-baseline">
+                                <span class="text-secondary">DP Status</span>
+                                <span class="font-semibold text-gray-500">Inactive</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </main>
+            </div>
+
+
+            <!-- VIEW: Configuration -->
+            <div id="view-configuration" class="hidden">
+                 <div class="sub-tabs flex items-center p-1 rounded-lg space-x-1 mb-6 max-w-md">
+                    <button data-config-view="builder" id="mode-builder-tab-button" class="flex-1 py-2 px-4 rounded-md text-sm active"><i class="ph ph-graph align-middle mr-1"></i> Mode Builder</button>
+                    <button data-config-view="geofence" id="geofence-tab-button" class="flex-1 py-2 px-4 rounded-md text-sm"><i class="ph ph-map-trifold align-middle mr-1"></i> Geofence Editor</button>
+                </div>
+
+                <div id="config-content">
+                    <!-- SUB-VIEW: Mode Builder -->
+                    <div id="config-view-builder">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative"> <!-- Added relative positioning -->
+                            <!-- Modes List -->
+                            <div class="widget p-6">
+                                <h3 class="text-md font-bold text-headings mb-4">Modes</h3>
+                                <div id="modes-list" class="space-y-1 text-sm"> <!-- Reduced space -->
+                                    <!-- JS will populate this -->
+                                </div>
+                                <button id="new-mode-btn" class="mt-4 w-full text-sm py-2 bg-[var(--bg-primary)] hover:bg-[var(--border-primary)] rounded-md text-secondary font-semibold transition-colors flex items-center justify-center"><i class="ph ph-plus mr-1"></i> New Mode</button>
+                                <p id="mode-builder-upgrade-note" class="hidden text-xs text-secondary mt-2 text-center">Full editing requires Advanced Features.</p>
+                            </div>
+                            
+                            <!-- Mode Viewer (Read-only) -->
+                            <div class="lg:col-span-2 widget p-6">
+                                <h2 id="mode-viewer-title" class="text-lg font-bold text-headings mb-4"></h2>
+                                <div id="mode-viewer-content" class="border border-[var(--border-primary)] rounded-lg p-6 bg-[var(--bg-primary)] space-y-4">
+                                    <div class="flex items-center">
+                                        <div class="bg-gray-700 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">IF</div>
+                                        <div class="w-full ml-4 border-t-2 border-dashed border-[var(--border-secondary)]"></div>
+                                    </div>
+                                    <div id="mode-viewer-conditions-container" class="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4 space-y-3">
+                                        <!-- JS will render read-only conditions here -->
+                                    </div>
+                                     <p id="mode-viewer-description" class="text-xs text-secondary mt-2 italic"></p> <!-- Placeholder for description -->
+                                     <!-- Activation Timer Display -->
+                                     <div id="mode-viewer-timer-container" class="hidden pt-2 mt-2 border-t border-[var(--border-primary)]">
+                                        <span class="text-xs font-semibold text-secondary uppercase">Activation Timer:</span>
+                                        <span id="mode-viewer-timer" class="text-sm font-bold text-headings ml-2"></span>
+                                     </div>
+                                    <div class="flex items-center">
+                                        <div class="bg-gray-700 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">THEN</div>
+                                        <div class="w-full ml-4 border-t-2 border-dashed border-[var(--border-secondary)]"></div>
+                                    </div>
+                                    <div class="flex items-center text-sm">
+                                        <span class="font-bold">Output Mode:</span>
+                                        <span id="mode-viewer-output-mode" class="ml-2 font-mono bg-[var(--accent-cyan)] text-white px-3 py-1 rounded-full text-xs"></span>
+                                    </div>
+                                </div>
+                                <button id="open-edit-modal-button" class="mt-6 w-full py-2 bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] rounded-md text-white font-semibold transition-colors">Edit Mode</button>
+                            </div>
+
+                             <!-- Mode Builder Upgrade Overlay -->
+                            <div id="mode-builder-upgrade-overlay" class="upgrade-overlay hidden">
+                                <i class="ph-fill ph-lock-key"></i>
+                                <h3 class="text-xl font-bold mb-2">Advanced Mode Builder</h3>
+                                <p class="text-sm mb-4">Create custom modes, define sub-modes, add timers, and verify logic with an active subscription.</p>
+                                <button class="py-2 px-4 rounded-md bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] text-white font-semibold">Upgrade Now</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- SUB-VIEW: Geofence Editor -->
+                    <div id="config-view-geofence" class="hidden relative"> <!-- Added relative positioning -->
+                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 widget p-0 overflow-hidden relative">
+                                <div id="map" class="h-96 lg:h-[600px] z-0"></div>
+                                <div id="map-toast" class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-[1000] text-white text-sm px-4 py-2 rounded shadow-lg"></div>
+                            </div>
+                            <div class="widget p-6 flex flex-col">
+                                <h3 class="text-md font-bold text-headings mb-4">My Geofences</h3>
+                                <div id="geofence-list" class="space-y-1 text-sm flex-grow overflow-y-auto">
+                                    <!-- JS will populate this tree structure -->
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-[var(--border-primary)] space-y-2">
+                                     <p class="text-xs text-secondary text-center">Use map tools to create/edit/delete fences.</p>
+                                     <button id="edit-geofence-btn" disabled class="w-full py-2 bg-[var(--bg-secondary)] hover:bg-[var(--border-primary)] rounded-md text-primary font-semibold transition-colors flex items-center justify-center"><i class="ph ph-pencil-simple mr-1"></i> Edit Metadata</button>
+                                </div>
+                            </div>
+                         </div>
+                         <!-- Geofence Upgrade Overlay -->
+                         <div id="geofence-upgrade-overlay" class="upgrade-overlay hidden">
+                            <i class="ph-fill ph-lock-key"></i>
+                            <h3 class="text-xl font-bold mb-2">Advanced Geofence Editor</h3>
+                            <p class="text-sm mb-4">Create, edit, and manage custom geofences directly on the map with an active subscription.</p>
+                            <button class="py-2 px-4 rounded-md bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] text-white font-semibold">Upgrade Now</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: History & Log -->
+            <div id="view-history" class="hidden">
+                 <div class="widget p-6">
+                    <div class="flex justify-between items-center mb-6">
+                         <h2 class="text-lg font-bold text-headings">Operational History</h2>
+                         <input type="date" class="bg-[var(--bg-primary)] border border-[var(--border-primary)] text-primary rounded-md p-2 text-sm">
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-headings uppercase tracking-wider mb-2">24 Hour Timeline</h3>
+                        <div class="w-full bg-[var(--bg-primary)] rounded-full h-8 flex overflow-hidden border border-[var(--border-primary)]">
+                            <div class="h-full bg-sky-500" style="width: 30%" title="Transit"></div>
+                            <div class="h-full bg-green-500" style="width: 25%" title="Dynamic Positioning"></div>
+                            <div class="h-full bg-gray-500" style="width: 20%" title="Stationary"></div>
+                            <div class="h-full bg-yellow-500" style="width: 5%" title="Undetected"></div>
+                            <div class="h-full bg-green-500" style="width: 20%" title="Dynamic Positioning"></div>
+                        </div>
+                         <div class="text-xs text-secondary mt-1 flex justify-between">
+                            <span>00:00</span>
+                            <span>06:00</span>
+                            <span>12:00</span>
+                            <span>18:00</span>
+                            <span>24:00</span>
+                        </div>
+                    </div>
+                    <div class="mt-8">
+                        <h3 class="text-sm font-semibold text-headings uppercase tracking-wider mb-2">Event Log</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="border-b border-[var(--border-primary)] text-secondary">
+                                    <tr>
+                                        <th class="p-2">Start Time</th>
+                                        <th class="p-2">End Time</th>
+                                        <th class="p-2">Duration</th>
+                                        <th class="p-2">Mode</th>
+                                        <th class="p-2">Status</th>
+                                        <th class="p-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-[var(--border-primary)]">
+                                    <tr>
+                                        <td class="p-2 font-mono">14:32:01</td>
+                                        <td class="p-2 font-mono">-</td>
+                                        <td class="p-2 font-mono">00:15:33</td>
+                                        <td class="p-2 font-semibold">Dynamic Positioning</td>
+                                        <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300">Auto-Detected</span></td>
+                                        <td class="p-2"></td>
+                                    </tr>
+                                    <tr class="bg-[var(--bg-secondary)]">
+                                        <td class="p-2 font-mono">12:11:45</td>
+                                        <td class="p-2 font-mono">14:32:01</td>
+                                        <td class="p-2 font-mono">02:20:16</td>
+                                        <td class="p-2 font-semibold">Stationary</td>
+                                        <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300">Auto-Detected</span></td>
+                                        <td class="p-2"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 font-mono">11:39:12</td>
+                                        <td class="p-2 font-mono">12:11:45</td>
+                                        <td class="p-2 font-mono">00:32:33</td>
+                                        <td class="p-2 font-semibold text-yellow-400">Undetected</td>
+                                        <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-blue-500/20 text-blue-300">Manually Classified</span></td>
+                                        <td class="p-2 text-secondary text-xs italic">Classified as 'Standby' by J. Doe</td>
+                                    </tr>
+                                    <tr class="bg-[var(--bg-secondary)]">
+                                        <td class="p-2 font-mono">05:38:00</td>
+                                        <td class="p-2 font-mono">11:39:12</td>
+                                        <td class="p-2 font-mono">06:01:12</td>
+                                        <td class="p-2 font-semibold">Dynamic Positioning</td>
+                                        <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300">Auto-Detected</span></td>
+                                        <td class="p-2"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2 font-mono">00:00:00</td>
+                                        <td class="p-2 font-mono">05:38:00</td>
+                                        <td class="p-2 font-mono">05:38:00</td>
+                                        <td class="p-2 font-semibold">Transit</td>
+                                        <td class="p-2"><span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-300">Auto-Detected</span></td>
+                                        <td class="p-2"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Edit Mode Modal -->
+    <div id="edit-mode-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="widget w-full max-w-5xl max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex-shrink-0 flex justify-between items-center p-4 border-b border-[var(--border-primary)]">
+                <h2 id="modal-mode-editor-title" class="text-lg font-bold text-headings"></h2>
+                <button id="close-mode-modal-button" class="text-2xl text-secondary hover:text-headings">&times;</button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="flex-grow overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left Side: Active Configuration -->
+                <div id="modal-mode-editor-content" class="space-y-4">
+                     <!-- Inherited Conditions (Read Only) -->
+                     <div id="modal-inherited-conditions-container" class="hidden space-y-2">
+                        <p class="text-xs font-semibold text-secondary uppercase tracking-wider">Inherited Conditions (Read-Only)</p>
+                         <div class="bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-lg p-3 space-y-2 opacity-70">
+                             <!-- Inherited conditions rendered here -->
+                         </div>
+                     </div>
+
+                    <div class="flex items-center">
+                        <div class="bg-gray-700 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">IF</div>
+                        <div class="w-full ml-4 border-t-2 border-dashed border-[var(--border-secondary)]"></div>
+                    </div>
+                    <p class="text-xs font-semibold text-secondary uppercase tracking-wider">Mode Specific Conditions</p>
+                    <div id="modal-mode-conditions-container" class="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4 space-y-3 min-h-[50px]">
+                        <!-- JS will render editable conditions here -->
+                    </div>
+                     <div class="flex items-center">
+                        <div class="bg-gray-700 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">THEN</div>
+                        <div class="w-full ml-4 border-t-2 border-dashed border-[var(--border-secondary)]"></div>
+                    </div>
+                    <div class="flex items-center text-sm">
+                        <span class="font-bold">Output Mode:</span>
+                        <span id="modal-mode-output-mode" class="ml-2 font-mono bg-[var(--accent-cyan)] text-white px-3 py-1 rounded-full text-xs"></span>
+                    </div>
+
+                    <!-- Description and Parent Editors (Subscription-gated) -->
+                    <div id="modal-advanced-editing-container" class="hidden space-y-4 pt-4 border-t border-[var(--border-primary)]">
+                         <div>
+                            <label for="modal-mode-parent-select" class="block text-sm font-medium text-secondary mb-1">Parent Mode</label>
+                            <select id="modal-mode-parent-select" class="modal-input w-full p-2">
+                                <!-- JS will populate this -->
+                            </select>
+                        </div>
+                        <div>
+                            <label for="modal-mode-description" class="block text-sm font-medium text-secondary mb-1">Description</label>
+                            <textarea id="modal-mode-description" class="modal-input w-full p-2" rows="3"></textarea>
+                        </div>
+                         <div>
+                            <label for="modal-mode-duration" class="block text-sm font-medium text-secondary mb-1">Activation Timer (seconds)</label>
+                             <input type="number" id="modal-mode-duration" class="modal-input w-full p-2" min="0" value="0">
+                        </div>
+                    </div>
+
+                     <p id="modal-upgrade-note" class="hidden text-xs text-secondary mt-2 text-center">Editing limited without Advanced Features subscription.</p>
+                </div>
+                <!-- Right Side: Available Signals (Asset Tree) -->
+                <div id="modal-signal-list" class="bg-[var(--bg-secondary)] p-4 rounded-lg overflow-y-auto">
+                    <h3 class="text-md font-bold text-headings mb-4">Available Signals</h3>
+                    <div id="signal-asset-tree" class="space-y-4 text-sm">
+                        <div>
+                            <h4 class="font-semibold text-secondary mb-2">Vessel Parameters</h4>
+                            <div class="space-y-2">
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Vessel Speed">Vessel Speed</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Heading">Heading</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="GPS Position">GPS Position</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Water Depth">Water Depth</p> <!-- Added -->
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-secondary mb-2">System Parameters</h4>
+                             <div class="space-y-2">
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="DP Status">DP Status</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Engine Load">Engine Load</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Gangway PLC Status">Gangway PLC Status</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Crane Active Status">Crane Active Status</p>
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Jacking System Status">Jacking System Status</p> <!-- Added -->
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Jacking Leg Extension">Jacking Leg Extension</p> <!-- Added -->
+                                <p class="signal-item p-2 bg-[var(--bg-primary)] rounded cursor-pointer hover:bg-[var(--border-primary)]" data-signal-name="Jacking Load">Jacking Load</p> <!-- Added -->
+                                <!-- Removed Leg Load as redundant with Jacking Load? -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex-shrink-0 flex justify-end gap-4 p-4 border-t border-[var(--border-primary)]">
+                <button id="cancel-edit-mode-button" class="py-2 px-4 rounded-md bg-[var(--bg-secondary)] hover:bg-[var(--border-primary)] text-primary font-semibold">Cancel</button>
+                <button id="save-mode-button" class="py-2 px-4 rounded-md bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] text-white font-semibold">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Geofence Modal -->
+    <div id="edit-geofence-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="widget w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div class="flex-shrink-0 flex justify-between items-center p-4 border-b border-[var(--border-primary)]">
+                <h2 id="geofence-modal-title" class="text-lg font-bold text-headings"></h2>
+                <button id="close-geofence-modal-button" class="text-2xl text-secondary hover:text-headings">&times;</button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-6 space-y-4"> <!-- Added more padding -->
+                <input type="hidden" id="geofence-id-input">
+                <div>
+                    <label for="geofence-name-input" class="block text-sm font-medium text-secondary mb-1">Name</label>
+                    <input type="text" id="geofence-name-input" class="modal-input w-full p-2"> <!-- Kept w-full for clarity -->
+                     <p id="geofence-name-error" class="hidden text-red-500 text-xs mt-1">Geofence name cannot be empty.</p>
+                </div>
+                <div>
+                    <label for="geofence-type-select" class="block text-sm font-medium text-secondary mb-1">Type</label>
+                    <select id="geofence-type-select" class="modal-input w-full p-2">
+                        <option>Port</option>
+                        <option>Wind Farm</option>
+                        <option>Safety Zone</option>
+                        <option>Phase</option>
+                        <option>Turbine</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="geofence-parent-select" class="block text-sm font-medium text-secondary mb-1">Parent (Optional)</label>
+                    <select id="geofence-parent-select" class="modal-input w-full p-2">
+                        <!-- JS will populate this -->
+                    </select>
+                </div>
+            </div>
+            <div class="flex-shrink-0 flex justify-end gap-4 p-4 border-t border-[var(--border-primary)]">
+                <button id="cancel-geofence-button" class="py-2 px-4 rounded-md bg-[var(--bg-secondary)] hover:bg-[var(--border-primary)] text-primary font-semibold">Cancel</button>
+                <button id="save-geofence-button" class="py-2 px-4 rounded-md bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] text-white font-semibold">Save Geofence</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="widget w-full max-w-md">
+             <div class="flex justify-between items-center p-4 border-b border-[var(--border-primary)]"> <!-- Added padding -->
+                 <h3 id="confirmation-title" class="text-lg font-bold text-headings">Confirm Action</h3>
+                 <button id="close-confirmation-modal" class="text-2xl text-secondary hover:text-headings">&times;</button>
+             </div>
+             <div class="p-6"> <!-- Added padding for content -->
+                <p id="confirmation-message" class="text-sm text-secondary mb-6"></p>
+                 <div id="confirmation-details" class="text-xs text-secondary mb-6"></div> <!-- Placeholder for usage details -->
+                 <div class="flex justify-end gap-4">
+                     <button id="cancel-confirmation" class="py-2 px-4 rounded-md bg-[var(--bg-secondary)] hover:bg-[var(--border-primary)] text-primary font-semibold">Cancel</button>
+                     <button id="confirm-action" class="py-2 px-4 rounded-md bg-[var(--accent-red)] hover:bg-red-600 text-white font-semibold">Confirm</button>
+                 </div>
+             </div>
+        </div>
+    </div>
+    
+    <!-- Input Modal (for New Mode) -->
+    <div id="input-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="widget w-full max-w-md"> <!-- Max width set -->
+             <div class="flex justify-between items-center p-4 border-b border-[var(--border-primary)]"> <!-- Added padding -->
+                 <h3 id="input-modal-title" class="text-lg font-bold text-headings"></h3>
+                 <button id="close-input-modal" class="text-2xl text-secondary hover:text-headings">&times;</button>
+             </div>
+             <div class="p-6 space-y-4"> <!-- Added padding -->
+                 <div>
+                    <label id="input-modal-label" for="input-modal-field" class="block text-sm font-medium text-secondary mb-1"></label>
+                    <input type="text" id="input-modal-field" class="modal-input w-full p-2"> <!-- Kept w-full -->
+                    <p id="input-modal-error" class="hidden text-red-500 text-xs mt-1"></p>
+                 </div>
+                 <!-- Parent Mode Selection (only visible when adding advanced mode) -->
+                 <div id="input-modal-parent-container" class="hidden">
+                    <label for="input-modal-parent-select" class="block text-sm font-medium text-secondary mb-1">Parent Mode (Optional)</label>
+                     <select id="input-modal-parent-select" class="modal-input w-full p-2">
+                        <!-- Options populated by JS -->
+                     </select>
+                 </div>
+                 <div class="flex justify-end gap-4 pt-4 border-t border-[var(--border-primary)]"> <!-- Added padding top and border -->
+                     <button id="cancel-input-modal" class="py-2 px-4 rounded-md bg-[var(--bg-secondary)] hover:bg-[var(--border-primary)] text-primary font-semibold">Cancel</button>
+                     <button id="save-input-modal" class="py-2 px-4 rounded-md bg-[var(--accent-cyan)] hover:bg-[var(--accent-cyan-hover)] text-white font-semibold">Save</button>
+                 </div>
+             </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- STATE & DATA ---
+            let map = null; 
+            let drawnItems = null; // Layer group for drawn shapes
+            let drawControl = null;
+            let activeMode = null; // Key of the currently selected mode
+            let activeSubMode = null; // Key of the currently selected submode (if any)
+            let selectedGeofenceKey = null;
+            let layerMap = {}; // Maps geofence keys to leaflet layer IDs
+            let tempLayer = null; // Temporary layer while creating
+            let hasSubscription = false; // Initial subscription state
+            let confirmCallback = null; // Callback for confirmation modal
+
+              let geofenceData = {
+                'rotterdam': { name: 'Port of Rotterdam', type: 'Port', shape: 'polygon', latlngs: [[51.95, 4.0], [51.93, 4.4], [51.88, 4.4], [51.90, 4.0]] },
+                'dogger-bank': { 
+                    name: 'Dogger Bank Field', type: 'Wind Farm', shape: 'rectangle', bounds: [[54.5, 1.5], [55.5, 3.0]],
+                    subfences: {
+                        'db-a-t01': { name: 'Turbine DA-01', type: 'Turbine', shape: 'circle', lat: 54.77, lon: 1.91, radius: 500 },
+                        'db-a-t02': { name: 'Turbine DA-02', type: 'Turbine', shape: 'circle', lat: 54.78, lon: 1.93, radius: 500 }
+                    }
+                },
+                'gode-wind': {
+                    name: 'Gode Wind Farm', type: 'Wind Farm', shape: 'rectangle', bounds: [[54.0, 6.9], [54.06, 7.1]],
+                    subfences: {
+                        'gw-g22': { name: 'Turbine GW-G22', type: 'Turbine', shape: 'circle', lat: 54.04, lon: 7.03, radius: 500 }
+                    }
+                }
+            };
+            
+            const signalMeta = {
+                'Vessel Speed': { type: 'numeric', operators: ['>', '<', '=', '!='] },
+                'Heading': { type: 'numeric', operators: ['>', '<', '=', '!='] },
+                'GPS Position': { type: 'geo', operators: ['IS INSIDE', 'IS OUTSIDE'] },
+                'DP Status': { type: 'state', operators: ['=', '!='], options: ['Active', 'Inactive', 'Standby'] }, // Added Standby
+                'Engine Load': { type: 'numeric', operators: ['>', '<', '=', '!='] },
+                'Gangway PLC Status': { type: 'state', operators: ['=', '!='], options: ['Connected', 'Stowed', 'In Motion'] },
+                'Crane Active Status': { type: 'state', operators: ['=', '!='], options: ['Active', 'Inactive'] },
+                 'Jacking System Status': { type: 'state', operators: ['=', '!='], options: ['On', 'Off'] }, // Added
+                'Jacking Leg Extension': { type: 'numeric', operators: ['>', '<', '=', '!='] }, // Added
+                'Jacking Load': { type: 'numeric', operators: ['>', '<', '=', '!='] }, // Added
+                'Water Depth': { type: 'numeric', operators: ['>', '<', '=', '!='] } // Added
+            };
+
+             // Updated modeSets with simplified basic modes + advanced structure
+            let modeSets = {
+                // --- Basic Modes (Always Visible) ---
+                'Transit': {
+                    conditions: [ { signal: 'Vessel Speed', operator: '>', value: '3 kts' } ],
+                    output: 'Transit',
+                    description: "Vessel moving between locations. Upgrade for sub-modes like 'Full Speed' or 'Economical'.",
+                    duration: 60 // Default duration
+                },
+                'Dynamic Positioning': {
+                    conditions: [ { signal: 'DP Status', operator: '=', value: 'Active' } ],
+                    output: 'Dynamic Positioning',
+                    description: "Vessel holding position using DP. Upgrade for sub-modes based on equipment usage (Gangway, Crane, etc.).",
+                    duration: 10
+                },
+                'Stationary': { 
+                    conditions: [
+                        { signal: 'Vessel Speed', operator: '<', value: '1 kts' },
+                        { signal: 'DP Status', operator: '!=', value: 'Active' } 
+                    ],
+                    output: 'Stationary',
+                    description: "Vessel stopped or moving slowly without DP. Upgrade for sub-modes like 'Port Stay', 'Anchored', or 'Standby'.",
+                    duration: 120
+                },
+                 // --- Advanced Modes (Subscription Required) ---
+                 'DP Maneuver': { // Renamed slightly
+                    conditions: [
+                        { signal: 'DP Status', operator: '!=', value: 'Standby' }, 
+                        { signal: 'Vessel Speed', operator: '<', value: '3 kts' },
+                        { signal: 'Jacking System Status', operator: '=', value: 'Off' }, 
+                        { signal: 'Jacking Leg Extension', operator: '<', value: '5 m' } 
+                    ],
+                    output: 'DP/Maneuver',
+                    advanced: true,
+                    description: "Vessel maneuvering at low speed using DP, not in standby, legs retracted.",
+                    duration: 0
+                },
+                 'Jacking Up': {
+                    conditions: [
+                         { signal: 'Jacking System Status', operator: '=', value: 'On' },
+                         { signal: 'Jacking Load', operator: '>', value: '0 tons' } // Timer logic TBD
+                    ],
+                    output: 'Jacking Up',
+                     advanced: true,
+                    description: "Jacking system active with positive load (legs moving down).",
+                    duration: 60
+                },
+                'Jacking Down': {
+                    conditions: [
+                         { signal: 'Jacking System Status', operator: '=', value: 'On' },
+                         { signal: 'Jacking Load', operator: '<', value: '0 tons' } // Timer logic TBD
+                    ],
+                    output: 'Jacking Down',
+                    advanced: true,
+                    description: "Jacking system active with negative load (legs moving up).",
+                    duration: 60
+                },
+                 'Elevated Operation': { // Parent for Field/Port
+                    conditions: [
+                         { signal: 'Jacking System Status', operator: '=', value: 'Off' },
+                         { signal: 'Jacking Leg Extension', operator: '>', value: '5 m' }
+                    ],
+                    output: 'Elevated Operation', // Parent might not have direct output, depends on logic
+                    advanced: true,
+                    description: "Vessel elevated on legs, jacking system off.",
+                    duration: 0,
+                    submodes: {
+                        'field-op': {
+                             name: 'Field Operation', // Display name for submode
+                             conditions: [ { signal: 'Water Depth', operator: '>', value: '20 m' } ], 
+                             output: 'Field Operation',
+                             description: "Elevated in deeper water (>20m).",
+                             duration: 0
+                         },
+                         'port-op': {
+                             name: 'Port Operation',
+                             conditions: [ { signal: 'Water Depth', operator: '<=', value: '20 m' } ], 
+                             output: 'Port Operation',
+                             description: "Elevated in shallow water (<=20m).",
+                             duration: 0
+                         }
+                    }
+                },
+                'CSOV DP On-Site': {
+                    conditions: [
+                         { signal: 'DP Status', operator: '=', value: 'Active' },
+                         { signal: 'GPS Position', operator: 'IS INSIDE', value: "Turbine DA-01" } // Use the specific geofence name
+                    ],
+                    output: 'CSOV DP On-Site',
+                    advanced: true,
+                    description: "CSOV holding position on DP within Turbine DA-01 geofence.",
+                    duration: 30
+                }
+            };
+
+            
+            // --- DOM ELEMENTS ---
+            // ... (Most DOM elements remain the same - omitted for brevity) ...
+              const body = document.body;
+            const themeToggleButton = document.getElementById('theme-toggle-button');
+            const themeIconSun = document.getElementById('theme-icon-sun');
+            const themeIconMoon = document.getElementById('theme-icon-moon');
+            const mainTabs = document.querySelectorAll('.main-tabs button');
+            const views = { dashboard: document.getElementById('view-dashboard'), configuration: document.getElementById('view-configuration'), history: document.getElementById('view-history') };
+            const configButton = document.querySelector('button[data-view="configuration"]');
+            const subTabs = document.querySelectorAll('.sub-tabs button');
+            const configViews = { builder: document.getElementById('config-view-builder'), geofence: document.getElementById('config-view-geofence') };
+            const geofenceTabButton = document.getElementById('geofence-tab-button');
+            const modeBuilderTabButton = document.getElementById('mode-builder-tab-button');
+            const geofenceListContainer = document.getElementById('geofence-list');
+            const editGeofenceBtn = document.getElementById('edit-geofence-btn');
+            const modesListContainer = document.getElementById('modes-list');
+            const modeViewerTitle = document.getElementById('mode-viewer-title');
+            const modeViewerConditionsContainer = document.getElementById('mode-viewer-conditions-container');
+            const modeViewerOutputMode = document.getElementById('mode-viewer-output-mode');
+             const modeViewerDescription = document.getElementById('mode-viewer-description'); // Get the description element
+             const modeViewerTimerContainer = document.getElementById('mode-viewer-timer-container'); // Timer display
+             const modeViewerTimer = document.getElementById('mode-viewer-timer'); // Timer display
+            const openEditModalButton = document.getElementById('open-edit-modal-button');
+            const mapToast = document.getElementById('map-toast');
+            const newModeBtn = document.getElementById('new-mode-btn'); 
+            const subscriptionToggle = document.getElementById('subscription-toggle');
+            const modeBuilderUpgradeNote = document.getElementById('mode-builder-upgrade-note');
+            const modeBuilderUpgradeOverlay = document.getElementById('mode-builder-upgrade-overlay');
+            const geofenceUpgradeOverlay = document.getElementById('geofence-upgrade-overlay');
+            
+            // Mode Modal
+            const editModeModal = document.getElementById('edit-mode-modal');
+            const modalModeEditorTitle = document.getElementById('modal-mode-editor-title');
+            const modalInheritedConditionsContainer = document.getElementById('modal-inherited-conditions-container'); // Added
+            const modalModeConditionsContainer = document.getElementById('modal-mode-conditions-container');
+            const modalModeOutputMode = document.getElementById('modal-mode-output-mode');
+            const modalAdvancedEditingContainer = document.getElementById('modal-advanced-editing-container'); // Added
+            const modalModeParentSelect = document.getElementById('modal-mode-parent-select'); // Added
+            const modalModeDescription = document.getElementById('modal-mode-description'); // Added
+            const modalModeDuration = document.getElementById('modal-mode-duration'); // Added
+            const closeModeModalButton = document.getElementById('close-mode-modal-button');
+            const cancelEditModeButton = document.getElementById('cancel-edit-mode-button');
+            const saveModeButton = document.getElementById('save-mode-button');
+            const signalAssetTree = document.getElementById('signal-asset-tree');
+            const modalSignalList = document.getElementById('modal-signal-list'); 
+            const modalUpgradeNote = document.getElementById('modal-upgrade-note');
+
+            // Geofence Modal
+            const editGeofenceModal = document.getElementById('edit-geofence-modal');
+            const geofenceModalTitle = document.getElementById('geofence-modal-title');
+            const closeGeofenceModalButton = document.getElementById('close-geofence-modal-button');
+            const geofenceIdInput = document.getElementById('geofence-id-input');
+            const geofenceNameInput = document.getElementById('geofence-name-input');
+             const geofenceNameError = document.getElementById('geofence-name-error');
+            const geofenceTypeSelect = document.getElementById('geofence-type-select');
+            const geofenceParentSelect = document.getElementById('geofence-parent-select');
+            const cancelGeofenceButton = document.getElementById('cancel-geofence-button');
+            const saveGeofenceButton = document.getElementById('save-geofence-button');
+
+             // Confirmation Modal Elements
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmationTitle = document.getElementById('confirmation-title');
+            const confirmationMessage = document.getElementById('confirmation-message');
+            const confirmationDetails = document.getElementById('confirmation-details'); // Added element
+            const closeConfirmationModalBtn = document.getElementById('close-confirmation-modal');
+            const cancelConfirmationBtn = document.getElementById('cancel-confirmation');
+            const confirmActionBtn = document.getElementById('confirm-action');
+
+            // Input Modal Elements (for New Mode)
+             const inputModal = document.getElementById('input-modal');
+             const inputModalTitle = document.getElementById('input-modal-title');
+             const inputModalLabel = document.getElementById('input-modal-label');
+             const inputModalField = document.getElementById('input-modal-field');
+             const inputModalError = document.getElementById('input-modal-error');
+             const inputModalParentContainer = document.getElementById('input-modal-parent-container'); // Added
+             const inputModalParentSelect = document.getElementById('input-modal-parent-select'); // Added
+             const closeInputModalBtn = document.getElementById('close-input-modal');
+             const cancelInputModalBtn = document.getElementById('cancel-input-modal');
+             const saveInputModalBtn = document.getElementById('save-input-modal');
+
+
+             // Dashboard Elements
+            const currentModeDescriptionEl = document.getElementById('current-mode-description');
+
+
+            // --- FUNCTIONS ---
+            
+            // ... (applyTheme, showToast, modal helpers - unchanged, omitted) ...
+             function applyTheme(isLight) { /* ... */ }
+             function showToast(message, isError = false) { /* ... */ }
+             function openConfirmationModal(title, message, details = "", onConfirm) { 
+                 confirmationTitle.textContent = title;
+                 confirmationMessage.textContent = message;
+                 confirmationDetails.textContent = details; // Set details text
+                 confirmationDetails.classList.toggle('hidden', !details); // Show/hide details
+                 confirmCallback = onConfirm; // Store the callback
+                 confirmationModal.classList.remove('hidden');
+            }
+             function closeConfirmationModal() { 
+                 confirmationModal.classList.add('hidden');
+                 confirmCallback = null; // Clear callback
+             }
+             function openInputModal(title, label, showParentSelector = false, onSave) {
+                 inputModalTitle.textContent = title;
+                 inputModalLabel.textContent = label;
+                 inputModalField.value = ''; // Clear field
+                 inputModalError.classList.add('hidden'); // Hide error
+                 inputModalField.classList.remove('border-red-500'); // Remove error border
+
+                  // Handle Parent Selector visibility and population
+                  inputModalParentContainer.classList.toggle('hidden', !showParentSelector);
+                  if (showParentSelector) {
+                      const parentOptions = Object.keys(modeSets)
+                          .filter(key => (hasSubscription ? true : !modeSets[key].advanced) && key !== activeMode) // <-- Allow any visible mode as parent
+                          .map(key => `<option value="${key}">${modeSets[key].output}</option>`)
+                          .join('');
+                      inputModalParentSelect.innerHTML = `<option value="">None (Top-Level)</option>${parentOptions}`;
+                  } else {
+                       inputModalParentSelect.innerHTML = `<option value="">None (Top-Level)</option>`; // Default if hidden
+                  }
+
+
+                 // Store the save callback
+                 saveInputModalBtn.onclick = () => { 
+                     const value = inputModalField.value.trim();
+                     const parentModeKey = inputModalParentSelect.value;
+                     if (onSave(value, parentModeKey)) { // Pass parent key to callback
+                         closeInputModal();
+                     } 
+                 };
+                 inputModal.classList.remove('hidden');
+                 inputModalField.focus(); // Focus the input field
+            }
+             function closeInputModal() { 
+                 inputModal.classList.add('hidden');
+                 saveInputModalBtn.onclick = null; // Clear callback
+             }
+
+            // --- Geofence Functions ---
+            function initializeMap() {
+                if (map) return;
+                
+                map = L.map('map').setView([54.5, 4.0], 7); 
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+                L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', { attribution: '| &copy; OpenSeaMap' }).addTo(map);
+                
+                drawnItems = new L.FeatureGroup();
+                map.addLayer(drawnItems);
+
+                drawControl = new L.Control.Draw({
+                    edit: { featureGroup: drawnItems },
+                    draw: { polygon: true, polyline: false, rectangle: true, circle: true, marker: false, circlemarker: false }
+                });
+                // Only add draw controls if subscribed
+                if (hasSubscription) {
+                     map.addControl(drawControl);
+                }
+
+
+                map.on(L.Draw.Event.CREATED, (e) => {
+                     if (!hasSubscription) return;
+                    tempLayer = e.layer;
+                    openGeofenceModal(false);
+                });
+
+                map.on(L.Draw.Event.EDITED, (e) => {
+                     if (!hasSubscription) return;
+                    e.layers.eachLayer((layer) => {
+                        const key = layer.options.geofenceKey;
+                        const parentKey = layer.options.geofenceParentKey;
+                        updateGeofenceDataFromLayer(key, parentKey, layer);
+                    });
+                    showToast("Geofence(s) updated!");
+                });
+                 
+                 map.on('draw:deletestart', () => {
+                     if (!hasSubscription) return; // Prevent if not subscribed
+                     // Consider if a confirmation is needed *before* entering delete mode
+                 });
+                 map.on(L.Draw.Event.DELETED, (e) => {
+                     if (!hasSubscription) return;
+                     e.layers.eachLayer((layer) => {
+                        const key = layer.options.geofenceKey;
+                        const parentKey = layer.options.geofenceParentKey;
+                        deleteGeofence(key, parentKey, true); // Delete data AFTER map deletion
+                    });
+                 });
+
+
+                drawGeofencesFromData();
+                setupGeofenceControls();
+            }
+
+            function updateGeofenceDataFromLayer(key, parentKey, layer) {
+                let data = parentKey ? geofenceData[parentKey].subfences[key] : geofenceData[key];
+                if (!data) return;
+
+                if (layer instanceof L.Circle) {
+                    const latlng = layer.getLatLng();
+                    data.lat = latlng.lat;
+                    data.lon = latlng.lng;
+                    data.radius = layer.getRadius();
+                } else if (layer instanceof L.Rectangle) {
+                    const bounds = layer.getBounds();
+                    // Correct format for Leaflet: [[lat_sw, lon_sw], [lat_ne, lon_ne]]
+                    data.bounds = [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]]; 
+                } else if (layer instanceof L.Polygon) {
+                    data.latlngs = layer.getLatLngs()[0].map(p => [p.lat, p.lng]);
+                }
+            }
+            
+            function drawGeofencesFromData() {
+                 if (!map || !drawnItems) return; // Ensure map is initialized
+                drawnItems.clearLayers();
+                layerMap = {};
+
+                const createLayer = (key, data, parentKey = null) => {
+                    let layer;
+                    const options = { geofenceKey: key, geofenceParentKey: parentKey };
+                    try { // Add error handling for invalid bounds/data
+                        switch (data.shape) {
+                            case 'circle':
+                                layer = L.circle([data.lat, data.lon], { radius: data.radius, ...options });
+                                break;
+                            case 'polygon':
+                                layer = L.polygon(data.latlngs, options);
+                                break;
+                            case 'rectangle':
+                                // Ensure bounds format is correct before creating layer
+                                if (Array.isArray(data.bounds) && data.bounds.length === 2 && Array.isArray(data.bounds[0]) && Array.isArray(data.bounds[1])) {
+                                   layer = L.rectangle(data.bounds, options);
+                                } else {
+                                    console.error(`Invalid bounds format for rectangle ${key}:`, data.bounds);
+                                }
+                                break;
+                        }
+                        if (layer) {
+                            layer.bindTooltip(data.name);
+                            drawnItems.addLayer(layer);
+                            layerMap[key] = layer;
+                        }
+                    } catch (error) {
+                        console.error(`Error drawing geofence ${key}:`, error, data);
+                        showToast(`Error drawing geofence: ${data.name}`, true);
+                    }
+                };
+
+                for (const key in geofenceData) {
+                    createLayer(key, geofenceData[key]);
+                    if (geofenceData[key].subfences) {
+                        for (const subKey in geofenceData[key].subfences) {
+                            createLayer(subKey, geofenceData[key].subfences[subKey], key);
+                        }
+                    }
+                }
+            }
+
+            function setupGeofenceControls() {
+                geofenceListContainer.innerHTML = '';
+                const renderItem = (key, data, parentKey = null, isSub = false) => {
+                    const isSelected = selectedGeofenceKey === key;
+                    let itemHTML = `
+                        <div class="geofence-item ${data.subfences ? 'geofence-parent' : ''} p-2 bg-[var(--bg-primary)] rounded flex justify-between items-center cursor-pointer hover:bg-[var(--bg-secondary)] ${isSelected ? 'selected' : ''}" 
+                             data-key="${key}" ${parentKey ? `data-parent-key="${parentKey}"` : ''}" style="${isSub ? 'padding-left: 1.5rem;' : ''}">
+                            <div class="flex items-center">
+                                ${data.subfences ? '<i class="ph ph-caret-right mr-2"></i>' : ''}
+                                <span>${data.name}</span>
+                            </div>
+                             <div class="flex items-center">
+                                <span class="text-xs text-secondary mr-2">${data.type}</span>
+                                ${hasSubscription ? `<button class="delete-geofence-from-list-btn text-secondary hover:text-red-400"><i class="ph ph-trash"></i></button>` : ''} 
+                             </div>
+                        </div>
+                    `; // Delete button only shown if subscribed
+                    if (data.subfences) {
+                        itemHTML += `<div class="subfence-container hidden mt-1 space-y-1">`;
+                        for (const subKey in data.subfences) {
+                            itemHTML += renderItem(subKey, data.subfences[subKey], key, true);
+                        }
+                        itemHTML += `</div>`;
+                    }
+                    return itemHTML;
+                };
+
+                for (const key in geofenceData) {
+                    geofenceListContainer.innerHTML += renderItem(key, geofenceData[key]);
+                }
+                
+                document.querySelectorAll('.geofence-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (e.target.closest('.delete-geofence-from-list-btn')) return; // Prevent selection when clicking delete
+
+                        document.querySelectorAll('.geofence-item.selected').forEach(i => i.classList.remove('selected'));
+                        item.classList.add('selected');
+                        selectedGeofenceKey = item.dataset.key;
+                        
+                        const layer = layerMap[selectedGeofenceKey];
+                        if (map && layer) {
+                           try { // Added try-catch for bounds issues
+                                map.flyToBounds(layer.getBounds(), { paddingTopLeft: L.point(0, 50) });
+                           } catch (error) {
+                               console.error("Error flying to bounds:", error, layer);
+                               if (layer instanceof L.Circle) { // Fly to center for circles
+                                   map.flyTo(layer.getLatLng(), map.getZoom());
+                               }
+                           }
+                        }
+                        updateGeofenceActionButtons();
+
+                        if (item.classList.contains('geofence-parent')) {
+                           item.classList.toggle('expanded');
+                           const subContainer = item.nextElementSibling;
+                           if (subContainer) subContainer.classList.toggle('hidden');
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.delete-geofence-from-list-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const item = e.target.closest('.geofence-item');
+                        const key = item.dataset.key;
+                        const parentKey = item.dataset.parentKey;
+                        const geofenceName = item.querySelector('span').textContent;
+
+                         // Find modes using this geofence
+                        const modesUsing = findModesUsingGeofence(geofenceName);
+                        let detailsMsg = "Note: This geofence is not currently used in any modes.";
+                        if (modesUsing.length > 0) {
+                            detailsMsg = `Warning: This geofence is used in the following modes: ${modesUsing.join(', ')}.`;
+                        }
+
+                         // Use confirmation modal
+                        openConfirmationModal(
+                            'Delete Geofence', 
+                            `Are you sure you want to delete "${geofenceName}"? This cannot be undone.`, 
+                            detailsMsg, // Pass the details message
+                            () => { deleteGeofence(key, parentKey); } // Pass the actual delete function as callback
+                        );
+                    });
+                });
+                 updateGeofenceActionButtons();
+            }
+
+            function deleteGeofence(key, parentKey, fromMap = false) {
+                 if(!fromMap && hasSubscription) { // Only delete from map if subscribed
+                    const layer = layerMap[key];
+                    if(layer) drawnItems.removeLayer(layer);
+                 }
+                
+                if (parentKey && geofenceData[parentKey] && geofenceData[parentKey].subfences) {
+                    delete geofenceData[parentKey].subfences[key];
+                } else {
+                    delete geofenceData[key];
+                }
+                delete layerMap[key];
+                
+                if(selectedGeofenceKey === key) selectedGeofenceKey = null;
+                
+                setupGeofenceControls(); // Re-render list
+                if(!fromMap) showToast("Geofence deleted!");
+                 closeConfirmationModal(); // Close modal after action
+            }
+            
+            function openGeofenceModal(isEditing = false) {
+                 if (!hasSubscription) return; // Guard clause
+                geofenceNameError.classList.add('hidden'); // Hide error on open
+                geofenceNameInput.classList.remove('border-red-500');
+                const parentOptions = Object.keys(geofenceData)
+                    .filter(key => geofenceData[key].type === 'Wind Farm')
+                    .map(key => `<option value="${key}">${geofenceData[key].name}</option>`)
+                    .join('');
+                geofenceParentSelect.innerHTML = `<option value="">None (Top-Level)</option>${parentOptions}`;
+
+                if (isEditing && selectedGeofenceKey) {
+                    geofenceModalTitle.textContent = 'Edit Geofence Metadata';
+                    // Find the parent key correctly, even if not stored on the element initially
+                    let parentKey = null;
+                    for (const pk in geofenceData) {
+                        if (geofenceData[pk].subfences && geofenceData[pk].subfences[selectedGeofenceKey]) {
+                            parentKey = pk;
+                            break;
+                        }
+                    }
+                    const data = parentKey ? geofenceData[parentKey].subfences[selectedGeofenceKey] : geofenceData[selectedGeofenceKey];
+                    
+                    geofenceIdInput.value = selectedGeofenceKey;
+                    geofenceNameInput.value = data.name;
+                    geofenceTypeSelect.value = data.type;
+                    geofenceParentSelect.value = parentKey || '';
+                } else { // Creating
+                    geofenceModalTitle.textContent = 'New Geofence';
+                    geofenceIdInput.value = '';
+                    geofenceNameInput.value = '';
+                    geofenceTypeSelect.value = 'Turbine'; // Default type
+                    geofenceParentSelect.value = '';
+                }
+
+                editGeofenceModal.classList.remove('hidden');
+            }
+
+            function closeGeofenceModal() {
+                if (tempLayer && map) { // Added map check
+                    map.removeLayer(tempLayer);
+                    tempLayer = null;
+                }
+                editGeofenceModal.classList.add('hidden');
+            }
+
+            function saveGeofence() {
+                if (!hasSubscription) return; // Guard clause
+                const id = geofenceIdInput.value || `geo_${Date.now()}`;
+                const name = geofenceNameInput.value.trim(); // Trim whitespace
+                const type = geofenceTypeSelect.value;
+                const parentId = geofenceParentSelect.value;
+                
+                 // --- In-modal Validation ---
+                 geofenceNameError.classList.add('hidden'); 
+                 geofenceNameInput.classList.remove('border-red-500');
+                 if (!name) { 
+                    geofenceNameError.classList.remove('hidden'); 
+                    geofenceNameInput.classList.add('border-red-500');
+                    return; // Stop execution
+                }
+                 // --- End Validation ---
+
+                let geofence;
+                let existingData = null;
+                let oldParentId = null;
+
+                // Check if editing existing
+                 if (geofenceIdInput.value) {
+                    for (const pk in geofenceData) {
+                         if (geofenceData[pk].subfences && geofenceData[pk].subfences[id]) {
+                            oldParentId = pk;
+                            existingData = geofenceData[pk].subfences[id];
+                            break;
+                         }
+                    }
+                     if (!existingData) {
+                        existingData = geofenceData[id];
+                     }
+                 }
+
+                if (tempLayer) { // This is a new geofence from the map
+                    geofence = { name, type };
+                    if (tempLayer instanceof L.Circle) {
+                        geofence.shape = 'circle';
+                        const latlng = tempLayer.getLatLng();
+                        geofence.lat = latlng.lat;
+                        geofence.lon = latlng.lng;
+                        geofence.radius = tempLayer.getRadius();
+                    } else if (tempLayer instanceof L.Rectangle) {
+                        geofence.shape = 'rectangle';
+                        const bounds = tempLayer.getBounds();
+                        geofence.bounds = [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]];
+                    } else if (tempLayer instanceof L.Polygon) {
+                         geofence.shape = 'polygon';
+                        geofence.latlngs = tempLayer.getLatLngs()[0].map(p => [p.lat, p.lng]);
+                    }
+
+                    if (parentId) {
+                        if (!geofenceData[parentId].subfences) geofenceData[parentId].subfences = {};
+                        geofenceData[parentId].subfences[id] = geofence;
+                    } else {
+                        geofenceData[id] = geofence;
+                    }
+
+                    tempLayer = null; // Clear the temporary layer
+                } else if (existingData) { // This is just a metadata update or parent change
+                    geofence = existingData; // Keep existing shape data
+                    geofence.name = name;
+                    geofence.type = type;
+
+                    if (oldParentId !== parentId) {
+                         // Remove from old parent if exists
+                        if (oldParentId && geofenceData[oldParentId]?.subfences) { // Check if old parent exists
+                           delete geofenceData[oldParentId].subfences[id];
+                        } else if (!oldParentId && geofenceData[id]) { // Was top-level, check if it existed
+                            delete geofenceData[id]; 
+                        }
+
+                        // Add to new parent if exists
+                        if (parentId && geofenceData[parentId]) { // Check if new parent exists
+                            if (!geofenceData[parentId].subfences) geofenceData[parentId].subfences = {};
+                            geofenceData[parentId].subfences[id] = geofence;
+                        } else { // No parent, becomes top level
+                            geofenceData[id] = geofence; 
+                        }
+                    } else if (!parentId && !oldParentId) { // Still top-level
+                        geofenceData[id] = geofence; // Ensure it's updated correctly
+                    } else if (parentId && oldParentId === parentId && geofenceData[parentId]?.subfences) { // Still child of same parent
+                         geofenceData[parentId].subfences[id] = geofence;
+                    }
+
+                } else {
+                     console.error("Save failed: No temporary layer and no existing data found for ID:", id);
+                     showToast("Error saving geofence data.", true);
+                     closeGeofenceModal();
+                     return;
+                }
+                
+                drawGeofencesFromData(); // Redraw map overlays
+                setupGeofenceControls(); // Rebuild list
+                closeGeofenceModal();
+                showToast(`Geofence '${name}' saved!`);
+            }
+            
+            function updateGeofenceActionButtons() {
+                editGeofenceBtn.disabled = !selectedGeofenceKey || !hasSubscription; // Also disable if no subscription
+            }
+            
+            // --- Mode Builder Functions ---
+            function getAllGeofenceNames() {
+                 const names = [];
+                for (const key in geofenceData) {
+                    names.push(geofenceData[key].name);
+                    if (geofenceData[key].subfences) {
+                        for (const subKey in geofenceData[key].subfences) {
+                            names.push(geofenceData[key].subfences[subKey].name);
+                        }
+                    }
+                }
+                return names;
+             }
+             function findModesUsingGeofence(geofenceName) { 
+                 const modesUsing = [];
+                 for (const modeName in modeSets) {
+                    const mode = modeSets[modeName];
+                    if (mode.conditions) {
+                        for (const condition of mode.conditions) {
+                            if (condition.signal === 'GPS Position' && condition.value === geofenceName) {
+                                modesUsing.push(mode.output); // Use output name
+                                break; 
+                            }
+                        }
+                    }
+                     if (mode.submodes) {
+                         for (const subKey in mode.submodes) {
+                            const subMode = mode.submodes[subKey];
+                             if (subMode.conditions) {
+                                for (const condition of subMode.conditions) {
+                                     if (condition.signal === 'GPS Position' && condition.value === geofenceName) {
+                                         // Use combined name for clarity
+                                        modesUsing.push(`${mode.output} / ${subMode.name}`); 
+                                        break; 
+                                    }
+                                }
+                             }
+                         }
+                     }
+                }
+                return modesUsing;
+             }
+            function getValueClass(signal, value) {
+                if (!value) return 'text-gray-300'; // Handle potentially undefined value
+                if (signal.includes('Status')) {
+                    if (value.toLowerCase().includes('active') || value.toLowerCase().includes('connected')) return 'text-green-300';
+                    if (value.toLowerCase().includes('inactive') || value.toLowerCase().includes('off')) return 'text-red-400';
+                }
+                if(signal.includes('Position')) return 'text-sky-300';
+                return 'text-gray-300';
+            }
+
+            function renderModeConditions(container, conditions, isEditable = false, parentConditions = []) {
+                 // First render parent conditions (read-only) if they exist
+                 const inheritedContainer = document.getElementById('modal-inherited-conditions-container');
+                 if (isEditable && parentConditions && parentConditions.length > 0) {
+                     const inheritedContent = inheritedContainer.querySelector('div'); // Get the inner div
+                     inheritedContent.innerHTML = ''; // Clear previous
+                     parentConditions.forEach((pCond, pIndex) => {
+                         inheritedContent.innerHTML += `
+                            <div class="flex items-center text-sm condition-read-only">
+                                <span class="font-mono bg-[var(--bg-primary)] px-2 py-1 rounded text-secondary">${pCond.signal}</span>
+                                <span class="mx-3 font-bold">${pCond.operator}</span>
+                                <span class="font-mono bg-gray-500/10 ${getValueClass(pCond.signal, pCond.value)} px-2 py-1 rounded border border-current">${pCond.value}</span>
+                            </div>`;
+                         if (pIndex < parentConditions.length - 1) {
+                             inheritedContent.innerHTML += `<div class="flex items-center condition-read-only"><span class="text-sm font-bold text-secondary">AND</span><div class="w-full ml-2 border-t border-dashed border-[var(--border-secondary)]"></div></div>`;
+                         }
+                    });
+                     inheritedContainer.classList.remove('hidden');
+                 } else if (isEditable) {
+                    inheritedContainer.classList.add('hidden'); // Hide if no parent conditions
+                 }
+
+
+                 // Now render the mode's specific conditions
+                 container.innerHTML = ''; 
+                if (!conditions || conditions.length === 0 ) {
+                     container.innerHTML = '<p class="text-secondary text-sm">No specific conditions defined for this mode.</p>';
+                      if (isEditable && hasSubscription) {
+                        container.innerHTML = '<p class="text-secondary text-sm">No specific conditions defined. Click a signal from the right to add one.</p>';
+                     }
+                     // Don't return here if parent conditions might exist
+                 }
+
+
+                 (conditions || []).forEach((cond, index) => { // Add guard for undefined conditions
+                    let conditionHTML = '';
+                    const isVesselSpeed = cond.signal === 'Vessel Speed';
+                    // Allow editing Vessel Speed value even w/o subscription, OR allow full edit with subscription
+                    const canEditValue = isEditable && (hasSubscription || isVesselSpeed); 
+                    // Allow editing operator/removing ONLY with subscription
+                    const canEditStructure = isEditable && hasSubscription; 
+
+                    if (isEditable) { // Changed condition slightly to allow rendering disabled fields
+                        const meta = signalMeta[cond.signal] || { operators: ['='], type: 'text' };
+                        const operatorOptions = meta.operators.map(op => `<option value="${op}" ${cond.operator === op ? 'selected' : ''}>${op}</option>`).join('');
+                        
+                        let valueInputHTML;
+                        const isDisabled = !canEditValue; // Disable based on combined logic
+                        
+                        if (meta.type === 'geo') {
+                             valueInputHTML = `<select class="value-input modal-input p-1 flex-1" ${isDisabled ? 'disabled' : ''}>`; 
+                            const geofenceNames = getAllGeofenceNames();
+                            geofenceNames.forEach(name => {
+                                valueInputHTML += `<option value="${name}" ${cond.value === name ? 'selected' : ''}>${name}</option>`;
+                            });
+                            valueInputHTML += '</select>';
+                        } else if (meta.type === 'state') { // *** ADDED THIS BLOCK ***
+                            valueInputHTML = `<select class="value-input modal-input p-1 flex-1" ${isDisabled ? 'disabled' : ''}>`;
+                            (meta.options || []).forEach(opt => {
+                                valueInputHTML += `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`;
+                            });
+                             valueInputHTML += '</select>';
+                        } else {
+                             valueInputHTML = `<input type="text" class="value-input modal-input p-1 flex-1" value="${cond.value}" ${isDisabled ? 'disabled' : ''}>`;
+                        }
+
+                        conditionHTML = `
+                            <div class="condition-row flex items-center gap-2 text-sm">
+                                <span class="font-mono bg-[var(--bg-primary)] px-2 py-1 rounded text-secondary">${cond.signal}</span>
+                                <select class="operator-select modal-input p-1" ${!canEditStructure ? 'disabled' : ''}>${operatorOptions}</select> 
+                                ${valueInputHTML}
+                                ${canEditStructure ? `<button class="remove-condition-btn text-secondary hover:text-red-400"><i class="ph ph-trash"></i></button>` : ''}
+                            </div>
+                        `;
+                    } else { // Read-only view remains the same
+                         conditionHTML = `
+                            <div class="flex items-center text-sm">
+                                <span class="font-mono bg-[var(--bg-primary)] px-2 py-1 rounded text-secondary">${cond.signal}</span>
+                                <span class="mx-3 font-bold">${cond.operator}</span>
+                                <span class="font-mono bg-gray-500/10 ${getValueClass(cond.signal, cond.value)} px-2 py-1 rounded border border-current">${cond.value}</span>
+                            </div>`;
+                    }
+                    container.innerHTML += conditionHTML;
+
+                    if (index < conditions.length - 1) {
+                         container.innerHTML += `<div class="flex items-center"><span class="text-sm font-bold text-secondary">AND</span><div class="w-full ml-2 border-t border-dashed border-[var(--border-secondary)]"></div></div>`;
+                    }
+                });
+
+                 if (isEditable && hasSubscription) { // Attach remove listeners only if subscribed
+                    container.querySelectorAll('.remove-condition-btn').forEach((btn, index) => {
+                        btn.addEventListener('click', () => {
+                             let currentModeData = activeSubMode ? modeSets[activeMode].submodes[activeSubMode] : modeSets[activeMode]; 
+                             if (currentModeData && currentModeData.conditions) {
+                                currentModeData.conditions.splice(index, 1);
+                                 let parentConditions = activeSubMode ? (modeSets[activeMode].conditions || []) : []; // Ensure parentConditions is array
+                                renderModeConditions(modalModeConditionsContainer, currentModeData.conditions, true, parentConditions); // Re-render with parent context if needed
+                            } else {
+                                console.error("Could not find conditions for active mode/submode:", activeMode, activeSubMode);
+                            }
+                        });
+                    });
+                }
+            }
+
+            function renderModeViewer(modeKey, subModeKey = null) {
+                 // Clear previous description first
+                 const existingDesc = document.getElementById('mode-viewer-description-text');
+                 if (existingDesc) {
+                    existingDesc.remove();
+                 }
+                modeViewerTimerContainer.classList.add('hidden'); // Hide timer by default
+
+
+                const mode = modeSets[modeKey];
+                if (!mode) return;
+                
+                activeMode = modeKey; // Store main mode key
+                activeSubMode = subModeKey; // Store sub mode key (null if main mode)
+
+                let displayData = mode;
+                let displayName = mode.output;
+                let displayConditions = mode.conditions;
+                
+                 if (subModeKey && mode.submodes && mode.submodes[subModeKey]) {
+                     const subMode = mode.submodes[subModeKey];
+                     displayData = subMode; // Use submode data for output, description
+                     displayName = `${mode.output} / ${subMode.name}`;
+                     // Combine conditions for display (parent first, then sub)
+                     displayConditions = [...(mode.conditions || []), ...(subMode.conditions || [])];
+                 }
+
+                 modeViewerTitle.innerHTML = `Mode: <span class="text-[var(--text-accent)]">${displayName}</span>`;
+                modeViewerOutputMode.textContent = displayData.output;
+                 renderModeConditions(modeViewerConditionsContainer, displayConditions, false); // Always read-only here
+                
+                // Add description if available
+                const descriptionHTML = displayData.description ? `<p id="mode-viewer-description-text" class="text-xs text-secondary mt-2 italic">${displayData.description}</p>` : '';
+                modeViewerConditionsContainer.insertAdjacentHTML('afterend', descriptionHTML); 
+
+                 // Show timer if > 0
+                if (displayData.duration > 0) {
+                    modeViewerTimer.textContent = `${displayData.duration} seconds`;
+                    modeViewerTimerContainer.classList.remove('hidden');
+                }
+
+            }
+
+
+            function initializeModeBuilder() {
+                 modesListContainer.innerHTML = '';
+                 const renderItem = (key, data, isSub = false, parentKey = null) => {
+                     // Filter out advanced modes if no subscription
+                     if (data.advanced && !hasSubscription) return ''; 
+
+                     const isSelected = activeMode === key && activeSubMode === null && !isSub || activeMode === parentKey && activeSubMode === key;
+                     let itemHTML = `
+                        <div class="mode-item ${data.submodes ? 'mode-parent' : ''} p-2 bg-[var(--bg-primary)] rounded flex justify-between items-center cursor-pointer hover:bg-[var(--bg-secondary)] ${isSelected ? 'selected' : ''}" 
+                             data-mode-key="${key}" ${parentKey ? `data-parent-key="${parentKey}"` : ''} style="${isSub ? 'padding-left: 1.5rem;' : ''}">
+                             <div class="flex items-center">
+                                ${data.submodes ? '<i class="ph ph-caret-right mr-2"></i>' : ''}
+                                <span>${isSub ? data.name : data.output}</span> <!-- Use name for submodes -->
+                            </div>
+                              ${data.advanced ? '<i class="ph-fill ph-star text-yellow-400 text-xs" title="Advanced Mode"></i>' : ''}
+                        </div>
+                    `;
+                     if (data.submodes) {
+                         itemHTML += `<div class="submode-container hidden mt-1 space-y-1">`;
+                         for (const subKey in data.submodes) {
+                            // Render submode only if subscription is active OR if it somehow gets selected
+                             if (hasSubscription || (activeMode === key && activeSubMode === subKey)) { 
+                                 itemHTML += renderItem(subKey, data.submodes[subKey], true, key);
+                             }
+                         }
+                         itemHTML += `</div>`;
+                     }
+                     return itemHTML;
+                 };
+
+                 for (const key in modeSets) {
+                    modesListContainer.innerHTML += renderItem(key, modeSets[key]);
+                }
+
+                 // Attach event listeners
+                 modesListContainer.querySelectorAll('.mode-item').forEach(item => {
+                     item.addEventListener('click', (e) => {
+                         e.stopPropagation();
+                         modesListContainer.querySelectorAll('.mode-item').forEach(i => i.classList.remove('selected', 'active')); // Use selected for consistency
+                         item.classList.add('selected', 'active');
+                         
+                         const modeKey = item.dataset.modeKey;
+                         const parentKey = item.dataset.parentKey;
+
+                         if (parentKey) {
+                             renderModeViewer(parentKey, modeKey); // Pass both parent and sub key
+                         } else {
+                             renderModeViewer(modeKey); // Pass only main key
+                         }
+
+                         // Handle expanding/collapsing parents
+                         if (item.classList.contains('mode-parent')) {
+                            item.classList.toggle('expanded');
+                            const subContainer = item.nextElementSibling;
+                            if (subContainer && subContainer.classList.contains('submode-container')) {
+                                subContainer.classList.toggle('hidden', !item.classList.contains('expanded'));
+                             }
+                        }
+                     });
+                 });
+                 
+                 // Auto-select first item
+                 const firstItem = modesListContainer.querySelector('.mode-item');
+                 if (firstItem) firstItem.click();
+            }
+
+
+            function openEditModeModal() {
+                if (!activeMode) return; // Need a selected mode
+
+                let modeData = activeSubMode ? modeSets[activeMode].submodes[activeSubMode] : modeSets[activeMode];
+                let parentData = activeSubMode ? modeSets[activeMode] : null;
+                let displayName = activeSubMode ? `${parentData.output} / ${modeData.name}` : modeData.output;
+                 // Ensure parent conditions are an array, even if undefined
+                let parentConditions = parentData ? (parentData.conditions || []) : []; // <--- FIX: Default to empty array
+
+                // Use structuredClone for a true deep copy
+                const editableConditions = structuredClone(modeData.conditions || []); 
+
+                modalModeEditorTitle.innerHTML = `Edit Mode: <span class="text-[var(--text-accent)]">${displayName}</span>`;
+                modalModeOutputMode.textContent = modeData.output; // Show the specific output name
+                
+                // Show/hide advanced editing container
+                modalAdvancedEditingContainer.classList.toggle('hidden', !hasSubscription);
+                modalSignalList.classList.toggle('hidden', !hasSubscription); 
+                modalUpgradeNote.classList.toggle('hidden', hasSubscription); 
+
+                if (hasSubscription) {
+                    // Populate Parent Selector
+                     const parentOptions = Object.keys(modeSets)
+                        .filter(key => (hasSubscription ? true : !modeSets[key].advanced) && key !== activeMode) // <-- Allow any visible mode, not just advanced
+                        .map(key => `<option value="${key}">${modeSets[key].output}</option>`)
+                        .join('');
+                    modalModeParentSelect.innerHTML = `<option value="">None (Top-Level)</option>${parentOptions}`;
+                     modalModeParentSelect.value = activeSubMode ? activeMode : ""; // Set current parent
+
+                    // Populate Description
+                     modalModeDescription.value = modeData.description || '';
+                    // Populate Duration
+                    modalModeDuration.value = modeData.duration || 0;
+                }
+
+
+                 // Render read-only parent conditions and editable specific conditions
+                renderModeConditions(modalModeConditionsContainer, editableConditions, true, parentConditions); 
+                
+                editModeModal.classList.remove('hidden');
+            }
+
+
+            function closeEditModeModal() {
+                editModeModal.classList.add('hidden');
+                 // Clear inherited conditions display when closing
+                modalInheritedConditionsContainer.classList.add('hidden');
+                 modalInheritedConditionsContainer.querySelector('div').innerHTML = '';
+            }
+            
+            function saveModeChanges() {
+                // Allow saving basic speed changes even without subscription
+                const newConditions = [];
+                let changesMade = false;
+                
+                let targetModeKey = activeMode;
+                let targetSubKey = activeSubMode;
+                let targetModeData = targetSubKey ? modeSets[targetModeKey].submodes[targetSubKey] : modeSets[targetModeKey];
+                let targetConditions = targetModeData.conditions || [];
+
+                modalModeConditionsContainer.querySelectorAll('.condition-row').forEach(row => {
+                    const signal = row.querySelector('span').textContent;
+                    const operatorSelect = row.querySelector('.operator-select');
+                    const valueInput = row.querySelector('.value-input');
+                    
+                    if (!operatorSelect || !valueInput) return; // Safety check if row is malformed
+                    
+                    // Find the original condition (if it exists) to compare
+                    const originalCondition = targetConditions.find(c => c.signal === signal);
+
+                    if (operatorSelect.disabled) { 
+                        // If fields are disabled (e.g., non-VesselSpeed in free mode),
+                        // push the original, unchanged condition back in.
+                         if (originalCondition) newConditions.push(originalCondition);
+                         return; 
+                    }
+
+                    const operator = operatorSelect.value;
+                    const value = valueInput.value;
+                    
+                    if (!originalCondition || originalCondition.operator !== operator || originalCondition.value !== value) {
+                         if(hasSubscription || signal === 'Vessel Speed') {
+                            changesMade = true;
+                         }
+                    }
+                    newConditions.push({ signal, operator, value });
+                }); 
+                 
+                 // Check if conditions were removed (only possible if subbed)
+                if (hasSubscription && targetConditions && newConditions.length !== targetConditions.length) {
+                    changesMade = true;
+                }
+
+                // Check for subscription-only changes (description, parent, duration)
+                if (hasSubscription) {
+                    const newDescription = modalModeDescription.value;
+                    const newParentId = modalModeParentSelect.value;
+                    const newDuration = parseInt(modalModeDuration.value, 10) || 0;
+                    const oldParentId = activeSubMode ? activeMode : "";
+
+                    if (targetModeData.description !== newDescription) {
+                        targetModeData.description = newDescription;
+                        changesMade = true;
+                    }
+                    if (targetModeData.duration !== newDuration) {
+                        targetModeData.duration = newDuration;
+                        changesMade = true;
+                    }
+                    
+                    if (oldParentId !== newParentId) {
+                        changesMade = true;
+                        // Move the mode
+                        let modeDataToMove = structuredClone(targetModeData);
+                        modeDataToMove.conditions = newConditions; // Use the just-compiled conditions
+                        modeDataToMove.description = newDescription; // <-- Don't forget description
+                        modeDataToMove.duration = newDuration; // <-- Don't forget duration
+                        
+                        // *** FIX: Ensure 'name' property exists if it's becoming a submode ***
+                        if (newParentId && !modeDataToMove.name) {
+                            modeDataToMove.name = modeDataToMove.output; 
+                        }
+                        
+                        // 1. Remove from old location
+                        if (oldParentId) {
+                            delete modeSets[oldParentId].submodes[targetSubKey];
+                        } else {
+                            delete modeSets[targetModeKey];
+                        }
+                        
+                        // 2. Add to new location
+                        if (newParentId) { // New parent is a submode
+                            if (!modeSets[newParentId].submodes) modeSets[newParentId].submodes = {}; // <-- Create submodes if needed
+                            // Use the original key (targetModeKey) for the submode
+                            modeSets[newParentId].submodes[targetModeKey] = modeDataToMove;
+                            activeMode = newParentId; 
+                            activeSubMode = targetModeKey;
+                        } else { // New parent is top-level
+                            modeSets[targetModeKey] = modeDataToMove;
+                            activeMode = targetModeKey; 
+                            activeSubMode = null;
+                        }
+                    } else {
+                         // No parent change, just save conditions & description
+                         targetModeData.conditions = newConditions;
+                         targetModeData.description = newDescription; // <-- Save description even if parent unchanged
+                         targetModeData.duration = newDuration; // <-- Save duration even if parent unchanged
+                    }
+                } else if (changesMade) {
+                    // Non-subscribed, only save speed changes
+                    targetModeData.conditions = newConditions;
+                }
+                
+                if (!changesMade) {
+                     closeEditModeModal();
+                     return;
+                }
+
+                initializeModeBuilder(); // Refresh the list
+                renderModeViewer(activeMode, activeSubMode); // Refresh the main view
+                closeEditModeModal();
+            }
+
+            
+            function handleNewMode() {
+                 if (!hasSubscription) {
+                     modeBuilderUpgradeOverlay.classList.remove('hidden'); // Show overlay
+                    return;
+                }
+                
+                 openInputModal("Create New Mode", "Mode Name:", true, (newModeName, parentModeKey) => { // Show parent selector
+                     if (!newModeName || newModeName.trim() === '') {
+                        inputModalError.textContent = "Mode name cannot be empty.";
+                        inputModalError.classList.remove('hidden');
+                        inputModalField.classList.add('border-red-500');
+                        return false; // Indicate failure
+                    }
+                     // Check for duplicates in both top level and submodes (case-insensitive check)
+                    const lowerNewName = newModeName.toLowerCase();
+                     if (Object.keys(modeSets).some(k => k.toLowerCase() === lowerNewName) || 
+                         Object.values(modeSets).some(m => m.submodes && Object.keys(m.submodes).some(sk => sk.toLowerCase() === lowerNewName)) ||
+                         Object.values(modeSets).some(m => m.submodes && Object.values(m.submodes).some(sm => sm.name.toLowerCase() === lowerNewName)))
+                     {
+                        inputModalError.textContent = "A mode with this name or key already exists.";
+                        inputModalError.classList.remove('hidden');
+                         inputModalField.classList.add('border-red-500');
+                        return false; // Indicate failure
+                    }
+
+                    
+                     const newModeData = { 
+                        name: newModeName, // Store name for submodes
+                        conditions: [], 
+                        output: newModeName, // Default output to name
+                        advanced: true, // New modes are always advanced
+                        duration: 0 // Default duration for new modes
+                     };
+                     // Generate a unique key based on name, ensure it's truly unique
+                     let modeKey = newModeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                     let counter = 1;
+                     let originalKey = modeKey;
+                     while (modeSets[modeKey] || Object.values(modeSets).some(m => m.submodes && m.submodes[modeKey])) {
+                         modeKey = `${originalKey}-${counter++}`;
+                     }
+
+
+                     if (parentModeKey && modeSets[parentModeKey]) {
+                         if (!modeSets[parentModeKey].submodes) {
+                             modeSets[parentModeKey].submodes = {}; // <-- Create submodes if needed
+                         }
+                         modeSets[parentModeKey].submodes[modeKey] = newModeData;
+                         activeMode = parentModeKey; // Set active parent
+                         activeSubMode = modeKey; // Set active submode
+                     } else {
+                         modeSets[modeKey] = newModeData;
+                         activeMode = modeKey; // Set active main mode
+                         activeSubMode = null;
+                     }
+
+                    initializeModeBuilder(); // Refresh the list
+                    
+                    // Find and click the newly added mode item
+                     const newItem = modesListContainer.querySelector(`.mode-item[data-mode-key="${modeKey}"]`);
+                    if(newItem) newItem.click();
+                    return true; // Indicate success
+                });
+            }
+
+
+            function updateSubscriptionState() {
+                hasSubscription = subscriptionToggle.checked;
+
+                // Toggle Geofence Editor Tab & Content
+                geofenceTabButton.disabled = !hasSubscription;
+                geofenceUpgradeOverlay.classList.toggle('hidden', hasSubscription);
+                 // Enable/Disable Leaflet draw controls 
+                if (map) { // Ensure map is initialized before accessing controls
+                    if (hasSubscription) {
+                         if (drawControl) drawControl.addTo(map); // Add if not already added
+                    } else {
+                         if (drawControl) drawControl.remove(); // Remove if present
+                    }
+                }
+                 // Reset view if switching off subscription while on geofence tab
+                 const isActiveGeofenceTab = Array.from(subTabs).find(tab => tab.dataset.configView === 'geofence')?.classList.contains('active');
+                 if (!hasSubscription && isActiveGeofenceTab) {
+                     modeBuilderTabButton.click(); // Switch back to mode builder
+                 }
+
+
+                // Toggle Mode Builder Features
+                // newModeBtn.disabled = !hasSubscription; // Now controlled by handleNewMode
+                // Keep 'Edit Mode' button enabled for limited editing
+                // openEditModalButton.disabled = !hasSubscription; 
+                modeBuilderUpgradeNote.classList.toggle('hidden', hasSubscription);
+                modeBuilderUpgradeOverlay.classList.add('hidden'); // Hide overlay initially
+
+                 // Refresh geofence list to show/hide delete buttons
+                setupGeofenceControls();
+                 updateGeofenceActionButtons(); // Update edit/delete metadata buttons
+                 
+                 // Re-render mode list based on subscription
+                 initializeModeBuilder(); 
+                 
+                 // Re-render current mode viewer to reflect potential description changes or if mode is no longer visible
+                 if (activeMode && (!modeSets[activeMode]?.advanced || hasSubscription)) { // Added null check for modeSets[activeMode]
+                     // Check if submode exists and is allowed before rendering
+                    let subModeIsAdvanced = activeSubMode && modeSets[activeMode]?.submodes?.[activeSubMode]?.advanced;
+                    if (!activeSubMode || (subModeIsAdvanced && hasSubscription)) { // Logic fixed here
+                       renderModeViewer(activeMode, activeSubMode); 
+                    } else {
+                        // If submode was active and now disallowed, switch to parent
+                        activeSubMode = null;
+                        renderModeViewer(activeMode, null);
+                    }
+                 } else {
+                     // If the active mode was advanced and subscription turned off, select the first basic mode
+                      const firstBasicMode = Object.keys(modeSets).find(key => !modeSets[key].advanced);
+                      if (firstBasicMode) {
+                           const firstItem = modesListContainer.querySelector(`.mode-item[data-mode-key="${firstBasicMode}"]`);
+                           if (firstItem) firstItem.click();
+                      } else {
+                          // Handle case where there are no basic modes (shouldn't happen with defaults)
+                          modeViewerTitle.innerHTML = "";
+                          modeViewerConditionsContainer.innerHTML = "";
+                          modeViewerOutputMode.textContent = "";
+                          const existingDesc = document.getElementById('mode-viewer-description-text');
+                          if (existingDesc) existingDesc.remove();
+                      }
+                 }
+            }
+
+            // --- EVENT LISTENERS & INITIALIZATION ---
+            
+            geofenceTabButton.addEventListener('click', (e) => { 
+                if (!hasSubscription) { // Check subscription on the main subTab click handler
+                     e.preventDefault(); // Prevent tab switch
+                     geofenceUpgradeOverlay.classList.remove('hidden'); // Show overlay
+                     return;
+                }
+                // Logic to switch tab (handled by subTabs.forEach)
+                setTimeout(() => { 
+                    initializeMap();
+                    if(map) map.invalidateSize(); 
+                }, 10); 
+            });
+
+            editGeofenceBtn.addEventListener('click', () => openGeofenceModal(true));
+            closeGeofenceModalButton.addEventListener('click', closeGeofenceModal);
+            cancelGeofenceButton.addEventListener('click', closeGeofenceModal);
+            saveGeofenceButton.addEventListener('click', saveGeofence);
+            
+            applyTheme(localStorage.getItem('theme') === 'light');
+            
+            mainTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const viewName = tab.dataset.view;
+                    mainTabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    Object.values(views).forEach(v => v.classList.add('hidden'));
+                    views[viewName].classList.remove('hidden');
+                });
+            });
+
+            subTabs.forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    const button = e.currentTarget;
+                    const configViewName = button.dataset.configView;
+                     // Prevent switching to geofence editor if no subscription
+                    if (configViewName === 'geofence' && !hasSubscription) {
+                        geofenceUpgradeOverlay.classList.remove('hidden'); // Show overlay instead
+                        return; 
+                    }
+                    
+                    subTabs.forEach(t => t.classList.remove('active'));
+                    button.classList.add('active');
+                    Object.values(configViews).forEach(v => v.classList.add('hidden'));
+                    configViews[configViewName].classList.remove('hidden');
+
+                     // --- ADDED LOGIC HERE ---
+                    if (configViewName === 'geofence') {
+                        setTimeout(() => { 
+                            initializeMap();
+                            if(map) map.invalidateSize(); 
+                        }, 10); 
+                    }
+
+                    // Hide overlays when switching tabs
+                    geofenceUpgradeOverlay.classList.add('hidden');
+                    modeBuilderUpgradeOverlay.classList.add('hidden');
+                });
+            });
+
+            themeToggleButton.addEventListener('click', () => {
+                const isLight = body.classList.toggle('light-theme');
+                localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                applyTheme(isLight);
+            });
+
+            // Mode Modal Listeners
+            newModeBtn.addEventListener('click', handleNewMode); // This line connects the button to the function
+            openEditModalButton.addEventListener('click', openEditModeModal);
+            closeModeModalButton.addEventListener('click', closeEditModeModal);
+            cancelEditModeButton.addEventListener('click', closeEditModeModal);
+            saveModeButton.addEventListener('click', saveModeChanges);
+            signalAssetTree.addEventListener('click', (e) => {
+                 if (!hasSubscription) return; // Prevent adding signals via click if not subscribed
+                if (e.target.classList.contains('signal-item')) {
+                    const signalName = e.target.dataset.signalName;
+                    
+                    let newConditionValue = '';
+                    const meta = signalMeta[signalName] || {};
+                    if (meta.type === 'geo') {
+                        newConditionValue = getAllGeofenceNames()[0] || ''; // Default to first geofence
+                    } else if (meta.type === 'state') {
+                        newConditionValue = (meta.options || [])[0] || ''; // Default to first option
+                    }
+
+
+                    const newCondition = { signal: signalName, operator: (meta.operators || ['='])[0], value: newConditionValue };
+                    
+                    let currentConditions = [];
+                     // Get current conditions displayed in the modal editor (might include unsaved changes)
+                     modalModeConditionsContainer.querySelectorAll('.condition-row').forEach(row => {
+                         if (row.closest('#modal-inherited-conditions-container')) return; // Skip inherited
+                         currentConditions.push({
+                            signal: row.querySelector('span').textContent,
+                            operator: row.querySelector('.operator-select').value,
+                            value: row.querySelector('.value-input').value
+                        });
+                     });
+
+                    currentConditions.push(newCondition);
+                     // Determine parent conditions based on current modal state
+                     let parentKey = null;
+                     if (activeSubMode) parentKey = activeMode; // activeMode holds the parent key when submode active
+                     let parentConditions = parentKey ? (modeSets[parentKey].conditions || []) : []; // Default to [] if undefined
+
+                    renderModeConditions(modalModeConditionsContainer, currentConditions, true, parentConditions);
+                }
+            });
+             
+            // Confirmation Modal Listeners
+            closeConfirmationModalBtn.addEventListener('click', closeConfirmationModal);
+            cancelConfirmationBtn.addEventListener('click', closeConfirmationModal);
+            confirmActionBtn.addEventListener('click', () => {
+                if (typeof confirmCallback === 'function') {
+                    confirmCallback(); // Execute the stored callback
+                }
+                // Callback (e.g., deleteGeofence) should handle closing
+            });
+
+            // Input Modal Listeners
+             closeInputModalBtn.addEventListener('click', closeInputModal);
+             cancelInputModalBtn.addEventListener('click', closeInputModal);
+            // Save logic is attached dynamically in openInputModal
+
+            // Subscription Toggle Listener
+            subscriptionToggle.addEventListener('change', updateSubscriptionState);
+
+            // Dashboard simulation
+            const currentModeEl = document.getElementById('current-mode');
+            const confidenceScoreEl = document.getElementById('confidence-score');
+            const modeDurationEl = document.getElementById('mode-duration');
+            const activeParamsEl = document.getElementById('active-params');
+            const alertUndetectedEl = document.getElementById('alert-undetected');
+            const suggestionTextEl = document.getElementById('suggestion-text');
+
+            // Updated dashboard simulation modes to match the new basic set
+             const modes = [
+                 { name: 'Transit', confidence: '100%', params: [ { name: 'Vessel Speed > 3 kts', value: '10.2 kts', state: 'active' } ], description: modeSets['Transit'].description },
+                 { name: 'Dynamic Positioning', confidence: '100%', params: [ { name: 'DP Status = Active', value: 'Active', state: 'active' } ], description: modeSets['Dynamic Positioning'].description },
+                 { name: 'Stationary', confidence: '95%', params: [ { name: 'Vessel Speed < 1 kts', value: '0.8 kts', state: 'active' }, { name: 'DP Status != Active', value: 'Inactive', state: 'active' } ], description: modeSets['Stationary'].description },
+                 { name: 'Undetected', confidence: 'N/A', params: [ { name: 'Vessel Speed > 3 kts', value: '2.5 kts', state: 'inactive' }, { name: 'DP Status != Active', value: 'Inactive', state: 'active'} ], suggestion: "Suggestion: Stationary (Confidence: 80%). Speed slightly above threshold.", description: null } // No description for Undetected
+            ];
+
+
+            let currentModeIndex = 0;
+            let durationSeconds = 0;
+
+            function formatDuration(seconds) {
+                const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+                const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return `${h}:${m}:${s}`;
+            }
+            
+            function updateUI() {
+                const mode = modes[currentModeIndex];
+                currentModeEl.textContent = mode.name;
+                confidenceScoreEl.textContent = mode.confidence;
+                 currentModeDescriptionEl.textContent = mode.description || ''; // Update dashboard description
+                 currentModeDescriptionEl.classList.toggle('hidden', !mode.description); // Hide if no description
+
+
+                if (mode.name === 'Undetected') {
+                    currentModeEl.classList.remove('text-[var(--text-accent)]');
+                    currentModeEl.classList.add('text-[var(--accent-yellow)]');
+                    alertUndetectedEl.classList.remove('hidden');
+                    suggestionTextEl.textContent = mode.suggestion;
+                } else {
+                    currentModeEl.classList.remove('text-[var(--accent-yellow)]');
+                    currentModeEl.classList.add('text-[var(--text-accent)]');
+                    alertUndetectedEl.classList.add('hidden');
+                }
+
+                activeParamsEl.innerHTML = '';
+                 if (mode.params) { // Add check for params existence
+                    mode.params.forEach(p => {
+                        const paramColor = p.state === 'active' ? 'text-[var(--accent-green)]' : 'text-[var(--accent-red)]';
+                        const icon = p.state === 'active' ? 'ph-check-circle' : 'ph-x-circle';
+                        activeParamsEl.innerHTML += `<div class="flex justify-between items-center bg-[var(--bg-primary)] p-2 rounded-md"><div><p class="font-medium text-headings">${p.name}</p><p class="text-xs text-secondary">Current Value: ${p.value}</p></div><i class="ph-fill ${icon} ${paramColor} text-2xl"></i></div>`;
+                    });
+                 }
+            }
+            
+            setInterval(() => {
+                durationSeconds++;
+                modeDurationEl.textContent = formatDuration(durationSeconds);
+            }, 1000);
+
+            setInterval(() => {
+                currentModeIndex = (currentModeIndex + 1) % modes.length;
+                durationSeconds = 0; 
+                updateUI();
+            }, 10000);
+
+// ... (rest of the file)
+            // Initial setup
+            updateUI();
+            initializeModeBuilder(); 
+            updateSubscriptionState(); // Set initial state based on toggle (default off)
+        });
+    </script>
+
+</body>
+</html>
+
